@@ -17,7 +17,6 @@
 #include "kernel_traits.h"
 #include "utils.h"
 #include "softmax.h"
-#include "philox.cuh"
 
 namespace flash {
 
@@ -304,10 +303,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         copy(smem_thr_copy_Q, tSsQ, tSrQ_copy_view);
     }
 
-    auto seeds = at::cuda::philox::unpack(params.philox_args);
-    unsigned long long seed = std::get<0>(seeds);
-    unsigned long long offset = std::get<1>(seeds) + (bidb * params.h + bidh) * 32 + tidx % 32;
-
     clear(acc_o);
 
     // For performance reason, we separate out two kinds of iterations:
@@ -392,20 +387,21 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
         uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
         uint32_t block_col_idx = n_block * (kBlockN / 32);
-        if (Return_softmax) {
-            Tensor tOrP_copy = make_fragment_like(tOrP);
-            copy(tOrP, tOrP_copy);
-            flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
-                tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
-                block_row_idx, block_col_idx, kNWarps
-            );
-            flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
-            tPgP.data() = tPgP.data() + (-kBlockN);
-        }
-        if (Is_dropout) {
-            flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
-                                 block_row_idx, block_col_idx, kNWarps);
-        }
+	// todo
+        // if (Return_softmax) {
+        //     Tensor tOrP_copy = make_fragment_like(tOrP);
+        //     copy(tOrP, tOrP_copy);
+        //     flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
+        //         tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
+        //         block_row_idx, block_col_idx, kNWarps
+        //     );
+        //     flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
+        //     tPgP.data() = tPgP.data() + (-kBlockN);
+        // }
+        // if (Is_dropout) {
+        //     flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
+        //                          block_row_idx, block_col_idx, kNWarps);
+        // }
         // if (cute::thread0()) { print(tOrP); }
 
         flash::gemm_A_in_regs(acc_o, tOrP, tOrVt, tOsVt, tiled_mma, smem_thr_copy_V);
@@ -454,20 +450,20 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
         uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
         uint32_t block_col_idx = n_block * (kBlockN / 32);
-        if (Return_softmax) {
-            Tensor tOrP_copy = make_fragment_like(tOrP);
-            copy(tOrP, tOrP_copy);
-            flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
-                tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
-                block_row_idx, block_col_idx, kNWarps
-            );
-            flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
-            tPgP.data() = tPgP.data() + (-kBlockN);
-        }
-        if (Is_dropout) {
-            flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
-                                 block_row_idx, block_col_idx, kNWarps);
-        }
+        // if (Return_softmax) {
+        //     Tensor tOrP_copy = make_fragment_like(tOrP);
+        //     copy(tOrP, tOrP_copy);
+        //     flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
+        //         tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
+        //         block_row_idx, block_col_idx, kNWarps
+        //     );
+        //     flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
+        //     tPgP.data() = tPgP.data() + (-kBlockN);
+        // }
+        // if (Is_dropout) {
+        //     flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
+        //                          block_row_idx, block_col_idx, kNWarps);
+        // }
 
         flash::gemm_A_in_regs(acc_o, tOrP, tOrVt, tOsVt, tiled_mma, smem_thr_copy_V);
     }
