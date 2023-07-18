@@ -385,8 +385,8 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         // Reshape rP from (nrow=(2, MMA_M), ncol=(2, MMA_N)) to ((2, 2, 2), MMA_M, MMA_N / 2)
         // if using m16n8k16 or ((2, 2, 1), MMA_M, MMA_N) if using m16n8k8.
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
-        uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
-        uint32_t block_col_idx = n_block * (kBlockN / 32);
+        // uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
+        // uint32_t block_col_idx = n_block * (kBlockN / 32);
 	// todo
         // if (Return_softmax) {
         //     Tensor tOrP_copy = make_fragment_like(tOrP);
@@ -448,8 +448,8 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         // Reshape rP from (nrow=(2, MMA_M), ncol=(2, MMA_N)) to ((2, 2, 2), MMA_M, MMA_N / 2)
         // if using m16n8k16 or ((2, 2, 1), MMA_M, MMA_N) if using m16n8k8.
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
-        uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
-        uint32_t block_col_idx = n_block * (kBlockN / 32);
+        // uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
+        // uint32_t block_col_idx = n_block * (kBlockN / 32);
         // if (Return_softmax) {
         //     Tensor tOrP_copy = make_fragment_like(tOrP);
         //     copy(tOrP, tOrP_copy);
