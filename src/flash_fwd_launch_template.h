@@ -23,13 +23,13 @@ struct Qkv_params {
     const void *__restrict__ v_ptr;
 
     // The stride between rows of the Q, K and V matrices.
-    index_t q_batch_stride;
+    index_t q_batch_stride; // q.stride(0)
     index_t k_batch_stride;
     index_t v_batch_stride;
-    index_t q_row_stride;
+    index_t q_row_stride; // q.stride(-3)
     index_t k_row_stride;
     index_t v_row_stride;
-    index_t q_head_stride;
+    index_t q_head_stride; // q.stride(-2)
     index_t k_head_stride;
     index_t v_head_stride;
 
@@ -43,7 +43,6 @@ struct Qkv_params {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct Flash_fwd_params : public Qkv_params {
-
     // The O matrix (output).
     void * __restrict__ o_ptr;
 
@@ -51,12 +50,6 @@ struct Flash_fwd_params : public Qkv_params {
     index_t o_batch_stride;
     index_t o_row_stride;
     index_t o_head_stride;
-
-    // The pointer to the P matrix.
-    void * __restrict__ p_ptr;
-
-    // The pointer to the softmax sum.
-    void * __restrict__ softmax_lse_ptr;
 
     // The dimensions.
     int b, seqlen_q, seqlen_k, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded;
