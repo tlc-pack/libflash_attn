@@ -4,5 +4,6 @@
 
 #pragma once
 
-#include <cuda.h>
-#include <vector>
+#include <cuda_runtime.h>
+#include "cutlass/numeric_types.h"
+#include "cutlass/half.h"

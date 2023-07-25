@@ -5,12 +5,13 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --expt-relaxe
 include_directories(${CUTLASS_DIR}/include)
 
 add_library(flash_attn SHARED
-  flash_fwd_hdim128_fp16_sm80.cu
-  flash_fwd_hdim160_fp16_sm80.cu
-  flash_fwd_hdim192_fp16_sm80.cu
-  flash_fwd_hdim224_fp16_sm80.cu
-  flash_fwd_hdim256_fp16_sm80.cu
+  flash.cu
+  # flash_fwd_hdim128_fp16_sm80.cu
+  # flash_fwd_hdim160_fp16_sm80.cu
+  # flash_fwd_hdim192_fp16_sm80.cu
+  # flash_fwd_hdim224_fp16_sm80.cu
+  # flash_fwd_hdim256_fp16_sm80.cu
   flash_fwd_hdim32_fp16_sm80.cu
-  flash_fwd_hdim64_fp16_sm80.cu
-  flash_fwd_hdim96_fp16_sm80.cu
+  # flash_fwd_hdim64_fp16_sm80.cu
+  # flash_fwd_hdim96_fp16_sm80.cu
 )

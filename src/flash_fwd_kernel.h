@@ -161,13 +161,13 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
     const index_t row_offset_p = ((bidb * params.h + bidh) * params.seqlen_q_rounded
         + m_block * kBlockM) * params.seqlen_k_rounded + (n_block_max - 1) * kBlockN;
 
-    Tensor gQ = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.q_ptr) + row_offset_q),
+    Tensor gQ = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.q_ptr) + row_offset_q),
                             Shape<Int<kBlockM>, Int<kHeadDim>>{},
                             make_stride(params.q_row_stride, _1{}));
-    Tensor gK = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.k_ptr) + row_offset_k),
+    Tensor gK = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.k_ptr) + row_offset_k),
                             Shape<Int<kBlockN>, Int<kHeadDim>>{},
                             make_stride(params.k_row_stride, _1{}));
-    Tensor gV = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.v_ptr) + row_offset_v),
+    Tensor gV = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.v_ptr) + row_offset_v),
                             Shape<Int<kBlockN>, Int<kHeadDim>>{},
                             make_stride(params.v_row_stride, _1{}));
     Tensor gP = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.p_ptr) + row_offset_p),
