@@ -23,13 +23,13 @@ struct Qkv_params {
     const void *__restrict__ v_ptr;
 
     // The stride between rows of the Q, K and V matrices.
-    index_t q_batch_stride; // q.stride(0)
+    index_t q_batch_stride;
     index_t k_batch_stride;
     index_t v_batch_stride;
-    index_t q_row_stride; // q.stride(-3)
+    index_t q_row_stride;
     index_t k_row_stride;
     index_t v_row_stride;
-    index_t q_head_stride; // q.stride(-2)
+    index_t q_head_stride;
     index_t k_head_stride;
     index_t v_head_stride;
 
@@ -63,6 +63,7 @@ struct Flash_fwd_params : public Qkv_params {
     int * __restrict__ cu_seqlens_k;
 
     bool is_causal;
+    int sm;
 };
 
 template<typename Kernel_traits, bool Is_causal, bool Is_even_N, bool Is_even_K>
@@ -125,8 +126,7 @@ void run_mha_fwd_hdim64(Flash_fwd_params &params, cudaStream_t stream) {
 template<typename T>
 void run_mha_fwd_hdim96(Flash_fwd_params &params, cudaStream_t stream) {
     constexpr int Headdim = 96;
-    //    auto dprops = at::cuda::getCurrentDeviceProperties();
-    bool is_sm8x = true; // dprops->major == 8 && dprops->minor > 0;
+    bool is_sm8x = params.sm > 80 && params.sm <= 89;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
         if (is_sm8x) {
@@ -149,8 +149,7 @@ void run_mha_fwd_hdim96(Flash_fwd_params &params, cudaStream_t stream) {
 template<typename T>
 void run_mha_fwd_hdim128(Flash_fwd_params &params, cudaStream_t stream) {
     constexpr int Headdim = 128;
-    //    auto dprops = at::cuda::getCurrentDeviceProperties();
-    bool is_sm8x = true; // dprops->major == 8 && dprops->minor > 0;
+    bool is_sm8x = params.sm > 80 && params.sm <= 89;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
         // and 128 x 32 (48 KB smem) is the fastest for non-causal since we get 2 CTAs per SM.
@@ -177,8 +176,7 @@ void run_mha_fwd_hdim128(Flash_fwd_params &params, cudaStream_t stream) {
 template<typename T>
 void run_mha_fwd_hdim160(Flash_fwd_params &params, cudaStream_t stream) {
     constexpr int Headdim = 160;
-    //    auto dprops = at::cuda::getCurrentDeviceProperties();
-    bool is_sm8x = true; // dprops->major == 8 && dprops->minor > 0;
+    bool is_sm8x = params.sm > 80 && params.sm <= 89;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For A100, H100, 128 x 32 is the fastest.
         // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
@@ -245,9 +243,9 @@ void run_mha_fwd_hdim256(Flash_fwd_params &params, cudaStream_t stream) {
     int device;
     cudaGetDevice(&device);
     int max_smem_per_sm, max_smem_per_block;
-    cudaError status_ = cudaDeviceGetAttribute(
+    cudaDeviceGetAttribute(
         &max_smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device);
-    status_ = cudaDeviceGetAttribute(
+    cudaDeviceGetAttribute(
         &max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
     // printf("max_smem_per_sm = %d, max_smem_per_block = %d\n", max_smem_per_sm, max_smem_per_block);
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {

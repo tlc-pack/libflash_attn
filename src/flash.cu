@@ -64,6 +64,15 @@ bool flash_attention_forward(const half* q_ptr,
   params.o_row_stride = o_row_stride;
   params.o_head_stride = o_head_stride;
 
+  int device;
+  cudaGetDevice(&device);
+  int major, minor;
+  cudaDeviceGetAttribute(
+        &major, cudaDevAttrComputeCapabilityMajor, device);
+  cudaDeviceGetAttribute(
+        &minor, cudaDevAttrComputeCapabilityMinor, device);
+  params.sm = major * 10 + minor;
+
   if (head_dim == 32) {
     run_mha_fwd_<half, 32>(params, stream);
   } else if (head_dim == 64) {
