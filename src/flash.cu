@@ -1,6 +1,8 @@
 #include "flash.h"
 #include "flash_fwd_launch_template.h"
 
+namespace flash_attn {
+
 bool flash_attention_forward(const half* q_ptr,
 			     const half* k_ptr,
 			     const half* v_ptr,
@@ -95,3 +97,5 @@ bool flash_attention_forward(const half* q_ptr,
 
   return true;
 }
+
+} // namespace flash_attn

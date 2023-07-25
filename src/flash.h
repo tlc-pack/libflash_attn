@@ -8,6 +8,10 @@
 #include "cutlass/numeric_types.h"
 #include "cutlass/half.h"
 
+namespace flash_attn {
+
+using half = cutlass::half_t;
+
 bool flash_attention_forward(const half* q_ptr,
 			     const half* k_ptr,
 			     const half* v_ptr,
@@ -33,3 +37,5 @@ bool flash_attention_forward(const half* q_ptr,
 			     float softmax_scale,
 			     bool is_causal,
 			     cudaStream_t stream);
+
+} // namespace flash_attn
