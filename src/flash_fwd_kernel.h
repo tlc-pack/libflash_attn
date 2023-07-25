@@ -117,7 +117,7 @@ inline __device__ void write_softmax_to_gmem(
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Kernel_traits, bool Is_dropout, bool Is_causal, bool Is_even_N, bool Is_even_K, bool Return_softmax, typename Params>
+template<typename Kernel_traits, bool Is_causal, bool Is_even_N, bool Is_even_K, typename Params>
 inline __device__ void compute_attn_1rowblock(const Params &params, const int bidb, const int bidh, const int m_block) {
 
     using Element = typename Kernel_traits::Element;
@@ -385,24 +385,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         // Reshape rP from (nrow=(2, MMA_M), ncol=(2, MMA_N)) to ((2, 2, 2), MMA_M, MMA_N / 2)
         // if using m16n8k16 or ((2, 2, 1), MMA_M, MMA_N) if using m16n8k8.
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
-        // uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
-        // uint32_t block_col_idx = n_block * (kBlockN / 32);
-	// todo
-        // if (Return_softmax) {
-        //     Tensor tOrP_copy = make_fragment_like(tOrP);
-        //     copy(tOrP, tOrP_copy);
-        //     flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
-        //         tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
-        //         block_row_idx, block_col_idx, kNWarps
-        //     );
-        //     flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
-        //     tPgP.data() = tPgP.data() + (-kBlockN);
-        // }
-        // if (Is_dropout) {
-        //     flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
-        //                          block_row_idx, block_col_idx, kNWarps);
-        // }
-        // if (cute::thread0()) { print(tOrP); }
 
         flash::gemm_A_in_regs(acc_o, tOrP, tOrVt, tOsVt, tiled_mma, smem_thr_copy_V);
         // if (cute::thread0()) { print(scores); }
@@ -448,23 +430,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         // Reshape rP from (nrow=(2, MMA_M), ncol=(2, MMA_N)) to ((2, 2, 2), MMA_M, MMA_N / 2)
         // if using m16n8k16 or ((2, 2, 1), MMA_M, MMA_N) if using m16n8k8.
         Tensor tOrP = make_tensor(rP.data(), flash::convert_layout_rowcol_Aregs<Kernel_traits::TiledMma>(rP.layout()));
-        // uint32_t block_row_idx = m_block * (kBlockM / 16) + tidx / 32;
-        // uint32_t block_col_idx = n_block * (kBlockN / 32);
-        // if (Return_softmax) {
-        //     Tensor tOrP_copy = make_fragment_like(tOrP);
-        //     copy(tOrP, tOrP_copy);
-        //     flash::apply_dropout</*encode_dropout_in_sign_bit=*/true>(
-        //         tOrP_copy, params.p_dropout_in_uint8_t, seed, offset,
-        //         block_row_idx, block_col_idx, kNWarps
-        //     );
-        //     flash::write_softmax_to_gmem(tOrP_copy, tPgP, gmem_thr_copy_P);
-        //     tPgP.data() = tPgP.data() + (-kBlockN);
-        // }
-        // if (Is_dropout) {
-        //     flash::apply_dropout(tOrP, params.p_dropout_in_uint8_t, seed, offset,
-        //                          block_row_idx, block_col_idx, kNWarps);
-        // }
-
         flash::gemm_A_in_regs(acc_o, tOrP, tOrVt, tOsVt, tiled_mma, smem_thr_copy_V);
     }
 
@@ -478,7 +443,7 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         float sum = scores_sum(mi);
         float inv_sum = (sum == 0.f || sum != sum) ? 1.f : 1.f / sum;
         lse(mi) = (sum == 0.f || sum != sum) ? INFINITY : scores_max(mi) * params.scale_softmax + __logf(sum);
-        float scale = !Is_dropout ? inv_sum : inv_sum * params.rp_dropout;
+        float scale = inv_sum;
         #pragma unroll
         for (int ni = 0; ni < size<1>(acc_o_rowcol); ++ni) { acc_o_rowcol(mi, ni) *= scale; }
     }
@@ -548,7 +513,7 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<typename Kernel_traits, bool Is_dropout, bool Is_causal, bool Is_even_N, bool Is_even_K, bool Return_softmax, typename Params>
+template<typename Kernel_traits, bool Is_causal, bool Is_even_N, bool Is_even_K, typename Params>
 inline __device__ void compute_attn(const Params &params) {
     const int m_block = blockIdx.x;
     // The block index for the batch.
@@ -564,7 +529,7 @@ inline __device__ void compute_attn(const Params &params) {
     // the attention matrix. This way, as long as we have the batch, head, and the location of
     // the 16 x 32 block within the attention matrix, we can generate the exact same dropout pattern.
 
-    flash::compute_attn_1rowblock<Kernel_traits, Is_dropout, Is_causal, Is_even_N, Is_even_K, Return_softmax>(params, bidb, bidh, m_block);
+    flash::compute_attn_1rowblock<Kernel_traits, Is_causal, Is_even_N, Is_even_K>(params, bidb, bidh, m_block);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
