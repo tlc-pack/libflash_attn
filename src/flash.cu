@@ -63,8 +63,8 @@ bool flash_attention_forward(const half* q_ptr,
   params.v_head_stride = v_head_stride;
   params.v_row_stride = v_row_stride;
   params.o_batch_stride = o_batch_stride;
-  params.o_row_stride = o_row_stride;
   params.o_head_stride = o_head_stride;
+  params.o_row_stride = o_row_stride;
 
   int device;
   cudaGetDevice(&device);
@@ -75,21 +75,21 @@ bool flash_attention_forward(const half* q_ptr,
         &minor, cudaDevAttrComputeCapabilityMinor, device);
   params.sm = major * 10 + minor;
 
-  if (head_dim == 32) {
+  if (head_dim <= 32) {
     run_mha_fwd_<half, 32>(params, stream);
-  } else if (head_dim == 64) {
+  } else if (head_dim <= 64) {
     run_mha_fwd_<half, 64>(params, stream);
-  } else if (head_dim == 96) {
+  } else if (head_dim <= 96) {
     run_mha_fwd_<half, 96>(params, stream);
-  } else  if (head_dim == 128) {
+  } else  if (head_dim <= 128) {
     run_mha_fwd_<half, 128>(params, stream);
-  } else  if (head_dim == 160) {
+  } else  if (head_dim <= 160) {
     run_mha_fwd_<half, 160>(params, stream);
-  } else  if (head_dim == 192) {
+  } else  if (head_dim <= 192) {
     run_mha_fwd_<half, 192>(params, stream);
-  } else  if (head_dim == 224) {
+  } else  if (head_dim <= 224) {
     run_mha_fwd_<half, 224>(params, stream);
-  } else  if (head_dim == 256) {
+  } else  if (head_dim <= 256) {
     run_mha_fwd_<half, 256>(params, stream);
   } else {
     return false;
