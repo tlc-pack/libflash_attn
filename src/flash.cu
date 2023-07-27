@@ -3,7 +3,18 @@
 
 namespace flash_attn {
 
-bool flash_attention_forward(const half* q_ptr,
+
+inline void _assert(bool result, const char* const file, int const line, std::string const& info = "")
+{
+  if (!result) {
+    throw std::runtime_error(std::string("[FT][ERROR] ") + info + " Assertion fail: " + file + ":"
+			     + std::to_string(line) + " \n");
+  }
+}
+
+#define CHECK(val) _assert(val, __FILE__, __LINE__)
+
+void flash_attention_forward(const half* q_ptr,
 			     const half* k_ptr,
 			     const half* v_ptr,
 			     half* output_ptr,
@@ -28,7 +39,9 @@ bool flash_attention_forward(const half* q_ptr,
 			     float softmax_scale,
 			     bool is_causal,
 			     cudaStream_t stream) {
-  // assert head_dim % 8 == 0
+  CHECK(head_dim % 8 == 0);
+  CHECK(head_dim <= 256);
+
   auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
   const int head_dim_rounded = round_multiple(head_dim, 32);
   const int seqlen_q_rounded = round_multiple(seqlen_q, 128);
@@ -89,13 +102,9 @@ bool flash_attention_forward(const half* q_ptr,
     run_mha_fwd_<half, 192>(params, stream);
   } else  if (head_dim <= 224) {
     run_mha_fwd_<half, 224>(params, stream);
-  } else  if (head_dim <= 256) {
-    run_mha_fwd_<half, 256>(params, stream);
   } else {
-    return false;
+    run_mha_fwd_<half, 256>(params, stream);
   }
-
-  return true;
 }
 
 } // namespace flash_attn

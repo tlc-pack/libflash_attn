@@ -12,7 +12,7 @@ namespace flash_attn {
 
 using half = cutlass::half_t;
 
-bool flash_attention_forward(const half* q_ptr,
+void flash_attention_forward(const half* q_ptr,
 			     const half* k_ptr,
 			     const half* v_ptr,
 			     half* output_ptr,

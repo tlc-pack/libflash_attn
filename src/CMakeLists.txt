@@ -3,6 +3,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --expt-relaxe
                       ")
 
 include_directories(${CUTLASS_DIR}/include)
+include_directories(../include)
 
 add_library(flash_attn SHARED
   flash.cu
