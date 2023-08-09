@@ -9,3 +9,5 @@ mkdir build && cd build
 cmake ..
 make
 ```
+
+It seems there are compilation issues if g++-9 is used as the host compiler. We confirmed that g++-11 works without issues.
