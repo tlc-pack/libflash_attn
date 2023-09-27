@@ -91,17 +91,20 @@ struct Flash_fwd_kernel_traits : public Base {
         SmemLayoutAtomQ{},
         Shape<Int<kBlockN>, Int<kHeadDim>>{}));
 
+    // This has to be kBlockN and not 8, otherwise we get wrong results for d=128
+    using SmemLayoutAtomVtransposedNoSwizzle = Layout<Shape<Int<kBlockKSmem>, Int<kBlockN>>,
+                                                      Stride<_1, Int<kBlockKSmem>>>;
     using SmemLayoutAtomVtransposed = decltype(
-        composition(Swizzle<kSwizzle, 3, 3>{},
-                    // This has to be kBlockN and not 8, otherwise we get wrong results for d=128
-                    Layout<Shape<Int<kBlockKSmem>, Int<kBlockN>>,
-                           Stride<_1, Int<kBlockKSmem>>>{}));
+        composition(Swizzle<kSwizzle, 3, 3>{}, SmemLayoutAtomVtransposedNoSwizzle{}));
     using SmemLayoutVtransposed = decltype(tile_to_shape(
         SmemLayoutAtomVtransposed{},
         Shape<Int<kHeadDim>, Int<kBlockN>>{}));
     // Maybe the VtransposeNoSwizzle just needs to have the right shape
     // And the strides don't matter?
-    using SmemLayoutVtransposedNoSwizzle = decltype(SmemLayoutVtransposed{}.layout_fn());
+    using SmemLayoutVtransposedNoSwizzle = decltype(tile_to_shape(
+        SmemLayoutAtomVtransposedNoSwizzle{},
+        Shape<Int<kHeadDim>, Int<kBlockN>>{}));
+    // using SmemLayoutVtransposedNoSwizzle = decltype(SmemLayoutVtransposed{}.layout_fn());
 
     using SmemLayoutAtomO = decltype(
         composition(Swizzle<kSwizzle, 3, 3>{},
