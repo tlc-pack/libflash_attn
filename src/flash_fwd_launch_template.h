@@ -45,7 +45,6 @@ struct Flash_fwd_params : public Qkv_params {
 
     // The O matrix (output).
     void * __restrict__ o_ptr;
-    void * __restrict__ oaccum_ptr;
 
     // The stride between rows of O.
     index_t o_batch_stride;
@@ -54,7 +53,7 @@ struct Flash_fwd_params : public Qkv_params {
 
 
     // The dimensions.
-    int b, seqlen_q, seqlen_k, seqlen_knew, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded, rotary_dim;
+    int b, seqlen_q, seqlen_k, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded;
 
     // The scaling factors for the kernel.
     float scale_softmax;
@@ -64,37 +63,10 @@ struct Flash_fwd_params : public Qkv_params {
     int * __restrict__ cu_seqlens_q = nullptr;
     int * __restrict__ cu_seqlens_k = nullptr;
 
-    int *__restrict__ blockmask;
-
-    // The K_new and V_new matrices.
-    void * __restrict__ knew_ptr = nullptr;
-    void * __restrict__ vnew_ptr = nullptr;
-
-    // The stride between rows of the Q, K and V matrices.
-    index_t knew_batch_stride;
-    index_t vnew_batch_stride;
-    index_t knew_row_stride;
-    index_t vnew_row_stride;
-    index_t knew_head_stride;
-    index_t vnew_head_stride;
-
-    // The cos and sin matrices for rotary embedding.
-    void * __restrict__ rotary_cos_ptr = nullptr;
-    void * __restrict__ rotary_sin_ptr = nullptr;
-
-    // The indices to index into the KV cache.
-    int *__restrict__ cache_batch_idx = nullptr;
-
     // Local window size
     int window_size_left, window_size_right;
 
     bool is_causal;
-
-    // If is_seqlens_k_cumulative, then seqlen_k is cu_seqlens_k[bidb + 1] - cu_seqlens_k[bidb].
-    // Otherwise it's cu_seqlens_k[bidb], i.e., we use cu_seqlens_k to store the sequence lengths of K.
-    bool is_seqlens_k_cumulative;
-
-    bool is_rotary_interleaved;
     int sm = 80;
 };
 
