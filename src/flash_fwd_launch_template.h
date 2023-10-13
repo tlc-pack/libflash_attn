@@ -64,7 +64,7 @@ struct Flash_fwd_params : public Qkv_params {
     int * __restrict__ cu_seqlens_k = nullptr;
 
     // Local window size
-    int window_size_left, window_size_right;
+    int window_size_left = -1, window_size_right = -1;
 
     bool is_causal;
     int sm = 80;
