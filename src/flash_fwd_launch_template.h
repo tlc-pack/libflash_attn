@@ -42,7 +42,6 @@ struct Qkv_params {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 struct Flash_fwd_params : public Qkv_params {
-
     // The O matrix (output).
     void * __restrict__ o_ptr;
 
@@ -50,7 +49,6 @@ struct Flash_fwd_params : public Qkv_params {
     index_t o_batch_stride;
     index_t o_row_stride;
     index_t o_head_stride;
-
 
     // The dimensions.
     int b, seqlen_q, seqlen_k, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded;

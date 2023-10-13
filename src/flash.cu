@@ -38,6 +38,8 @@ void flash_attention_forward(const half* q_ptr,
 			     int o_row_stride,
 			     float softmax_scale,
 			     bool is_causal,
+			     int window_size_left,
+			     int window_size_right,
 			     cudaStream_t stream) {
   CHECK(head_dim % 8 == 0);
   CHECK(head_dim <= 256);
@@ -78,6 +80,9 @@ void flash_attention_forward(const half* q_ptr,
   params.o_batch_stride = o_batch_stride;
   params.o_head_stride = o_head_stride;
   params.o_row_stride = o_row_stride;
+
+  params.window_size_left = window_size_left;
+  params.window_size_right = window_size_right;
 
   int device;
   cudaGetDevice(&device);
