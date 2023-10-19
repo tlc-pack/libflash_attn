@@ -58,8 +58,8 @@ struct Flash_fwd_params : public Qkv_params {
     float scale_softmax_log2;
 
     // array of length b+1 holding starting offset of each sequence.
-    int * __restrict__ cu_seqlens_q = nullptr;
-    int * __restrict__ cu_seqlens_k = nullptr;
+    const int* __restrict__ cu_seqlens_q = nullptr;
+    const int* __restrict__ cu_seqlens_k = nullptr;
 
     // Local window size
     int window_size_left = -1, window_size_right = -1;
