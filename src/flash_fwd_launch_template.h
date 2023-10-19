@@ -41,7 +41,6 @@ struct Qkv_params {
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct Flash_fwd_params : public Qkv_params {
     // The O matrix (output).
     void * __restrict__ o_ptr;
@@ -62,13 +61,18 @@ struct Flash_fwd_params : public Qkv_params {
     int * __restrict__ cu_seqlens_q = nullptr;
     int * __restrict__ cu_seqlens_k = nullptr;
 
+    // Local window size
+    int window_size_left = -1, window_size_right = -1;
+
     bool is_causal;
-    int sm;
+    int sm = 80;
 };
 
-template<typename Kernel_traits, bool Is_causal, bool Is_even_N, bool Is_even_K>
+
+template<typename Kernel_traits, bool Is_causal, bool Is_local, bool Is_even_MN, bool Is_even_K>
 __global__ void flash_fwd_kernel(Flash_fwd_params params) {
-    flash::compute_attn<Kernel_traits, Is_causal, Is_even_N, Is_even_K>(params);
+    static_assert(!(Is_causal && Is_local));  // If Is_local is true, Is_causal should be false
+    flash::compute_attn<Kernel_traits, Is_causal, Is_local, Is_even_MN, Is_even_K>(params);
 }
 
 template<typename Kernel_traits, bool Is_causal>
@@ -86,25 +90,24 @@ void run_flash_fwd(Flash_fwd_params &params, cudaStream_t stream) {
     const bool is_even_K = params.d == Kernel_traits::kHeadDim;
     BOOL_SWITCH(is_even_MN, IsEvenMNConst, [&] {
         BOOL_SWITCH(is_even_K, IsEvenKConst, [&] {
-                // Will only return softmax if dropout, to reduce compilation time.
-                auto kernel = &flash_fwd_kernel<Kernel_traits, Is_causal, IsEvenMNConst, IsEvenKConst>;
+            BOOL_SWITCH(params.window_size_left >= 0 || params.window_size_right >= 0, Is_local, [&] {
+                // If not IsEvenKConst, we also set IsEvenMNConst to false to reduce number of templates.
+                // If return_softmax, set IsEvenMNConst to false to reduce number of templates
+                // If head dim > 128, set IsEvenMNConst to false to reduce number of templates
+                // If Is_local, set Is_causal to false
+                auto kernel = &flash_fwd_kernel<Kernel_traits, Is_causal && !Is_local, Is_local, IsEvenMNConst && IsEvenKConst && !Is_local && Kernel_traits::kHeadDim <= 128, IsEvenKConst>;
                 if (smem_size >= 48 * 1024) {
-                    cudaFuncSetAttribute(
-                        kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
+                    cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_size);
                 }
-                int ctas_per_sm;
-                cudaError status_ = cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-                    &ctas_per_sm, kernel, Kernel_traits::kNThreads, smem_size);
-                // printf("smem_size = %d, CTAs per SM = %d\n", int(smem_size), ctas_per_sm);
                 kernel<<<grid, Kernel_traits::kNThreads, smem_size, stream>>>(params);
-		//                C10_CUDA_KERNEL_LAUNCH_CHECK();
+            });
         });
     });
 }
 
 template<typename T>
 void run_mha_fwd_hdim32(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 32;
+    constexpr static int Headdim = 32;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 4, false, false, T>, Is_causal>(params, stream);
     });
@@ -112,14 +115,14 @@ void run_mha_fwd_hdim32(Flash_fwd_params &params, cudaStream_t stream) {
 
 template<typename T>
 void run_mha_fwd_hdim64(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 64;
+    constexpr static int Headdim = 64;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
-      // Using 8 warps is 18% slower for seqlen=2k, 2 warps is 5% slower
-      // Using block size (64 x 256) is 27% slower for seqlen=2k
-      // Using block size (256 x 64) is 85% slower for seqlen=2k, because of register spilling
-      run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 4, false, false, T>, Is_causal>(params, stream);
-      // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_causal>(params, stream);
-      // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>, Is_causal>(params, stream);
+        // Using 8 warps is 18% slower for seqlen=2k, 2 warps is 5% slower
+        // Using block size (64 x 256) is 27% slower for seqlen=2k
+        // Using block size (256 x 64) is 85% slower for seqlen=2k, because of register spilling
+        run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 4, false, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>, Is_causal>(params, stream);
     });
 }
 
@@ -138,8 +141,8 @@ void run_mha_fwd_hdim96(Flash_fwd_params &params, cudaStream_t stream) {
         } else {
             run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, false, T>, Is_causal>(params, stream);
         }
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_dropout, Is_causal>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>, Is_dropout, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>, Is_causal>(params, stream);
         // These two are always slower
         // run_flash_fwd<Flash_fwd_kernel_traits<96, 128, 128, 4, true, T>>(params, stream);
         // run_flash_fwd<Flash_fwd_kernel_traits<96, 64, 128, 4, true, T>>(params, stream);
@@ -150,33 +153,33 @@ template<typename T>
 void run_mha_fwd_hdim128(Flash_fwd_params &params, cudaStream_t stream) {
     constexpr int Headdim = 128;
     bool is_sm8x = params.sm > 80 && params.sm <= 89;
-        BOOL_SWITCH(params.is_causal, Is_causal, [&] {
-           // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
-           // and 128 x 32 (48 KB smem) is the fastest for non-causal since we get 2 CTAs per SM.
-           if (is_sm8x) {
-               if constexpr(!Is_causal) {
-                   run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, false, T>, Is_causal>(params, stream);
-               } else {
-                   run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, false, T>, Is_causal>(params, stream);
-               }
-           } else {
-               run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, false, T>, Is_causal>(params, stream);
-           }
-           // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_causal>(params, stream);
-           // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>,  Is_causal>(params, stream);
-           // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 128, 4, false, false, T>, Is_causal>(params, stream);
-           // Using 8 warps (128 x 128 and 256 x 64) is 28% slower for seqlen=2k
-           // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 8, false, false, T>, Is_causal>(params, stream);
-           // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
-           // 1st ones are good for H100, A100
-           // 2nd one is good for A6000 bc we get slightly better occupancy
+    BOOL_SWITCH(params.is_causal, Is_causal, [&] {
+        // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
+        // and 128 x 32 (48 KB smem) is the fastest for non-causal since we get 2 CTAs per SM.
+        if (is_sm8x) {
+            if constexpr(!Is_causal) {
+                run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, false, T>, Is_causal>(params, stream);
+            } else {
+                run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, false, T>, Is_causal>(params, stream);
+            }
+        } else {
+            run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, false, T>, Is_causal>(params, stream);
+        }
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, true, true, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 128, 4, false, false, T>, Is_causal>(params, stream);
+        // Using 8 warps (128 x 128 and 256 x 64) is 28% slower for seqlen=2k
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 8, false, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
+        // 1st ones are good for H100, A100
+        // 2nd one is good for A6000 bc we get slightly better occupancy
     });
 }
 
 template<typename T>
 void run_mha_fwd_hdim160(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 160;
     bool is_sm8x = params.sm > 80 && params.sm <= 89;
+    constexpr static int Headdim = 160;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For A100, H100, 128 x 32 is the fastest.
         // For sm86 or sm89, 64 x 64 is the fastest for causal (because it's square),
@@ -190,8 +193,8 @@ void run_mha_fwd_hdim160(Flash_fwd_params &params, cudaStream_t stream) {
         } else {
             run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, false, T>, Is_causal>(params, stream);
         }
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, true, T>, Is_dropout, Is_causal>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, false, T>, Is_dropout, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, true, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, false, T>, Is_causal>(params, stream);
         // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, T>>(params, stream);
         // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 128, 4, false, T>>(params, stream);
         // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, T>>(params, stream);
@@ -202,52 +205,43 @@ void run_mha_fwd_hdim160(Flash_fwd_params &params, cudaStream_t stream) {
 
 template<typename T>
 void run_mha_fwd_hdim192(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 192;
+    constexpr static int Headdim = 192;
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
-
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 32, 4, false, false, T>, Is_dropout, Is_causal>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 8, false, false, T>, Is_dropout, Is_causal>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 4, false, T>>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 128, 4, false, T>>(params, stream);
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 128, 8, false, T>>(params, stream);
     });
 }
 
 template<typename T>
 void run_mha_fwd_hdim224(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 224;
+    constexpr static int Headdim = 224;
     int device;
     cudaGetDevice(&device);
     int max_smem_per_block;
-    cudaError status_ = cudaDeviceGetAttribute(
-        &max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
+    cudaDeviceGetAttribute(&max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
     // printf("max_smem_per_block = %d\n", max_smem_per_block);
-        BOOL_SWITCH(params.is_causal, Is_causal, [&] {
-            if (max_smem_per_block >= 2 * Headdim * (128 + 2 * 64)) {  // 112 KB
-                run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
-            } else {
-                run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, false, T>, Is_causal>(params, stream);
-            }
-            // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, false, T>, Is_dropout, Is_causal>(params, stream);
-            // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 32, 4, false, false, T>, Is_dropout, Is_causal>(params, stream);
-            // We can't do 128 x 32 with 8 warps because with headdim 224, kBlockKSmem = 32.
-            // If we have N = 32, there are only 1024 elements to load at once, where each load
-            // is 8 elements. This means we can only use 128 threads and not 256 threads.
-            // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 8, false, false, T>, Is_dropout, Is_causal>(params, stream);
+    BOOL_SWITCH(params.is_causal, Is_causal, [&] {
+        if (max_smem_per_block >= 2 * Headdim * (128 + 2 * 64)) {  // 112 KB
+            run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
+        } else {
+            run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, false, T>, Is_causal>(params, stream);
+        }
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 4, false, false, T>, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 32, 4, false, false, T>, Is_causal>(params, stream);
+        // We can't do 128 x 32 with 8 warps because with headdim 224, kBlockKSmem = 32.
+        // If we have N = 32, there are only 1024 elements to load at once, where each load
+        // is 8 elements. This means we can only use 128 threads and not 256 threads.
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 8, false, false, T>, Is_causal>(params, stream);
     });
 }
 
 template<typename T>
 void run_mha_fwd_hdim256(Flash_fwd_params &params, cudaStream_t stream) {
-    constexpr int Headdim = 256;
+    constexpr static int Headdim = 256;
     int device;
     cudaGetDevice(&device);
     int max_smem_per_sm, max_smem_per_block;
-    cudaError status_ = cudaDeviceGetAttribute(
-        &max_smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device);
-    status_ = cudaDeviceGetAttribute(
-        &max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
+    cudaDeviceGetAttribute(&max_smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device);
+    cudaDeviceGetAttribute(&max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
     // printf("max_smem_per_sm = %d, max_smem_per_block = %d\n", max_smem_per_sm, max_smem_per_block);
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For A100, we want to run with 128 x 64 (128KB smem).
@@ -258,9 +252,9 @@ void run_mha_fwd_hdim256(Flash_fwd_params &params, cudaStream_t stream) {
             run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 64, 4, false, false, T>, Is_causal>(params, stream);
         }
         // 64 KB
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 32, 4, false, false, T>, Is_dropout, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 64, 32, 4, false, false, T>, Is_causal>(params, stream);
         // 96 KB
-        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 8, false, false, T>, Is_dropout, Is_causal>(params, stream);
+        // run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 32, 8, false, false, T>, Is_causal>(params, stream);
     });
 }
 

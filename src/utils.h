@@ -42,7 +42,7 @@ inline __device__ uint32_t relu2<cutlass::half_t>(const uint32_t x) {
         "{\n" \
         "\t .reg .f16x2 sela;\n" \
         "\t set.gtu.u32.f16x2 sela, %1, %2;\n" \
-        "\t and.b32 %0, sela, %1;\n" 
+        "\t and.b32 %0, sela, %1;\n"
         "}\n" : "=r"(res) : "r"(x), "r"(zero));
 #endif
     return res;
@@ -88,46 +88,6 @@ inline __device__ uint32_t convert_relu2<cutlass::bfloat16_t>(const float2 x) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template<typename T>
-inline __device__ float2 half2_unpack(uint32_t a);
-
-template <>
-inline __device__ float2 half2_unpack<__half>(uint32_t a) {
-    return __half22float2(reinterpret_cast<__half2 (&)>(a));
-}
-
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-template <>
-inline __device__ float2 half2_unpack<__nv_bfloat16>(uint32_t a) {
-    return __bfloat1622float2(reinterpret_cast<__nv_bfloat162 (&)>(a));
-}
-#endif
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Convert two half2's or bf162's into float, then take their dot product.
-template <typename T>
-inline __device__ float hfma2_to_float(const uint32_t a, const uint32_t b) {
-    float2 af = flash::half2_unpack<T>(a);
-    float2 bf = flash::half2_unpack<T>(b);
-    return af.x * bf.x + af.y * bf.y;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Converted two vectors of 8 half's or bf16's into float, then take their dot product.
-template<typename T>
-inline __device__ float hmulsum8(const uint4 a, const uint4 b) {
-    float sum;
-    sum  = flash::hfma2_to_float<T>(a.x, b.x);
-    sum += flash::hfma2_to_float<T>(a.y, b.y);
-    sum += flash::hfma2_to_float<T>(a.z, b.z);
-    sum += flash::hfma2_to_float<T>(a.w, b.w);
-    return sum;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-template<typename T>
 struct MaxOp {
 __device__ inline T operator()(T const & x, T const & y) { return x > y ? x : y; }
 };
@@ -162,7 +122,7 @@ struct Allreduce {
 
 template<>
 struct Allreduce<2> {
-template<typename T, typename Operator> 
+template<typename T, typename Operator>
 static __device__ inline T run(T x, Operator &op) {
     x = op(x, __shfl_xor_sync(uint32_t(-1), x, 1));
     return x;
@@ -331,7 +291,7 @@ template <bool Is_even_MN=true, bool Is_even_K=true, bool Clear_OOB_MN=false, bo
           typename Engine2, typename Layout2, typename Engine3, typename Layout3>
 inline __device__ void copy(TiledCopy tiled_copy, Tensor<Engine0, Layout0> const &S,
                             Tensor<Engine1, Layout1> &D, Tensor<Engine2, Layout2> const &identity_MN,
-                            Tensor<Engine3, Layout3> const &predicate_K, int max_MN=0) {
+                            Tensor<Engine3, Layout3> const &predicate_K, const int max_MN=0) {
     CUTE_STATIC_ASSERT_V(rank(S) == Int<3>{});
     CUTE_STATIC_ASSERT_V(rank(D) == Int<3>{});
     CUTE_STATIC_ASSERT_V(size<0>(S) == size<0>(D));                     // MMA
@@ -394,5 +354,33 @@ inline __device__ void copy(TiledCopy tiled_copy, Tensor<Engine0, Layout0> const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <bool Is_even_K=true,
+          typename Engine0, typename Layout0, typename Engine1, typename Layout1,
+          typename Engine2, typename Layout2, typename Engine3, typename Layout3>
+inline __device__ void copy_w_min_idx(Tensor<Engine0, Layout0> const &S,
+                                      Tensor<Engine1, Layout1> &D, Tensor<Engine2, Layout2> const &identity_MN,
+                                      Tensor<Engine3, Layout3> const &predicate_K,
+                                      const int max_MN=0, const int min_MN=0) {
+    CUTE_STATIC_ASSERT_V(rank(S) == Int<3>{});
+    CUTE_STATIC_ASSERT_V(rank(D) == Int<3>{});
+    CUTE_STATIC_ASSERT_V(size<0>(S) == size<0>(D));                     // MMA
+    CUTE_STATIC_ASSERT_V(size<1>(S) == size<1>(D));                     // MMA_M
+    CUTE_STATIC_ASSERT_V(size<2>(S) == size<2>(D));                     // MMA_K
+    // if (threadIdx.x == 0 && blockIdx.z == 0) { printf("blockIdx.y = %d, max_MN = %d, min_MN = %d\n", blockIdx.y, max_MN, min_MN); }
+    #pragma unroll
+    for (int m = 0; m < size<1>(S); ++m) {
+        // if (threadIdx.x == 0 && blockIdx.z == 0) { printf("blockIdx.y = %d, m = %d\n", blockIdx.y, get<0>(identity_MN(0, m, 0))); }
+        if (get<0>(identity_MN(0, m, 0)) >= min_MN && get<0>(identity_MN(0, m, 0)) < max_MN) {
+            // if (threadIdx.x == 0 && blockIdx.z == 0) { printf("Inner loop, blockIdx.y = %d, m = %d\n", blockIdx.y, get<0>(identity_MN(0, m, 0))); }
+            #pragma unroll
+            for (int k = 0; k < size<2>(S); ++k) {
+                if (Is_even_K || predicate_K(k)) {
+                    cute::copy(S(_, m, k), D(_, m, k));
+                }
+            }
+        }
+    }
+}
 
 }  // namespace flash

@@ -36,6 +36,8 @@ void flash_attention_forward(const half* q_ptr,
 			     int o_row_stride,
 			     float softmax_scale,
 			     bool is_causal,
-			     cudaStream_t stream);
+			     int window_size_left = -1,
+			     int window_size_right = -1,
+			     cudaStream_t stream = nullptr);
 
 } // namespace flash_attn
