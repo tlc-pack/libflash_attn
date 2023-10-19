@@ -130,10 +130,6 @@ void flash_attention_var_len_forward(const half *q_ptr,
 				     int num_heads,
 				     int num_heads_k,
 				     int head_dim,
-				     int q_batch_stride,
-				     int k_batch_stride,
-				     int v_batch_stride,
-				     int o_batch_stride,
 				     int q_head_stride,
 				     int k_head_stride,
 				     int v_head_stride,
@@ -176,16 +172,12 @@ void flash_attention_var_len_forward(const half *q_ptr,
   params.scale_softmax = softmax_scale;
   params.scale_softmax_log2 = softmax_scale * M_LOG2E;
 
-  params.q_batch_stride = q_batch_stride;
   params.q_head_stride = q_head_stride;
   params.q_row_stride = q_row_stride;
-  params.k_batch_stride = k_batch_stride;
   params.k_head_stride = k_head_stride;
   params.k_row_stride = k_row_stride;
-  params.v_batch_stride = v_batch_stride;
   params.v_head_stride = v_head_stride;
   params.v_row_stride = v_row_stride;
-  params.o_batch_stride = o_batch_stride;
   params.o_head_stride = o_head_stride;
   params.o_row_stride = o_row_stride;
 
