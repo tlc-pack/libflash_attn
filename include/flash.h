@@ -40,4 +40,31 @@ void flash_attention_forward(const half* q_ptr,
 			     int window_size_right = -1,
 			     cudaStream_t stream = nullptr);
 
+
+void flash_attention_var_len_forward(const half *q_ptr,
+				     const half *k_ptr,
+                                     const half *v_ptr,
+				     const int *cu_seqlens_q,
+                                     const int *cu_seqlens_k,
+				     half* output_ptr,
+				     int batch_size,
+				     int max_seqlen_q,
+                                     int max_seqlen_k,
+				     int num_heads,
+				     int num_heads_k,
+				     int head_dim,
+				     int q_head_stride,
+				     int k_head_stride,
+				     int v_head_stride,
+				     int o_head_stride,
+				     int q_row_stride,
+				     int k_row_stride,
+				     int v_row_stride,
+				     int o_row_stride,
+				     float softmax_scale,
+				     bool is_causal,
+				     int window_size_left = -1,
+				     int window_size_right = -1,
+				     cudaStream_t stream = nullptr);
+
 } // namespace flash_attn
