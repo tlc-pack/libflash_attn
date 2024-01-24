@@ -32,6 +32,7 @@ struct Qkv_params {
     // different from nheads (query).
     int h_h_k_ratio; // precompute h / h_k,
 };
+
 struct Flash_fwd_params : public Qkv_params {
     // The O matrix (output).
     void * __restrict__ o_ptr;
@@ -42,15 +43,16 @@ struct Flash_fwd_params : public Qkv_params {
     index_t o_row_stride;
     index_t o_head_stride;
 
-    // // The pointer to the P matrix.
-    // void * __restrict__ p_ptr;
+    // The pointer to the P matrix.
+    void * __restrict__ p_ptr;
 
-    // // The pointer to the softmax sum.
-    // void * __restrict__ softmax_lse_ptr;
-    // void * __restrict__ softmax_lseaccum_ptr;
+    // The pointer to the softmax sum.
+    void * __restrict__ softmax_lse_ptr;
+    void * __restrict__ softmax_lseaccum_ptr;
 
     // The dimensions.
-    int b, seqlen_q, seqlen_k, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded;
+    int b, seqlen_q, seqlen_k, seqlen_knew, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded, rotary_dim;
+
 
     // The scaling factors for the kernel.
     float scale_softmax;
