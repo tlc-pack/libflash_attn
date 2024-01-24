@@ -531,14 +531,14 @@ inline __device__ void compute_attn_1rowblock_splitkv(const Params &params, cons
           + (n_block_max - 1) * kBlockN * params.v_row_stride + (bidh / params.h_h_k_ratio) * params.v_head_stride
         : block_table[block_table_idx] * params.v_batch_stride + block_table_offset * params.v_row_stride + (bidh / params.h_h_k_ratio) * params.v_head_stride;
 
-    Tensor gQ = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.q_ptr) + row_offset_q),
+    Tensor gQ = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.q_ptr) + row_offset_q),
                             Shape<Int<kBlockM>, Int<kHeadDim>>{},
                             make_stride(params.q_row_stride, _1{}));
-    Tensor gK = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.k_ptr) + row_offset_k),
+    Tensor gK = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.k_ptr) + row_offset_k),
                             Shape<Int<kBlockN>, Int<kHeadDim>>{},
                             make_stride(params.k_row_stride, _1{}));
     // if (threadIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) { printf("k_ptr = %p, row_offset_k = %d, gK_ptr = %p\n", params.k_ptr, row_offset_k, gK.data()); }
-    Tensor gV = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.v_ptr) + row_offset_v),
+    Tensor gV = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.v_ptr) + row_offset_v),
                             Shape<Int<kBlockN>, Int<kHeadDim>>{},
                             make_stride(params.v_row_stride, _1{}));
 
@@ -665,32 +665,32 @@ inline __device__ void compute_attn_1rowblock_splitkv(const Params &params, cons
         auto tKgK_data = tKgK.data();
         auto tVgV_data = tVgV.data();
         for (int n_block = n_block_max - 1; n_block >= n_block_copy_min; n_block--) {
-            flash::copy_w_min_idx<Is_even_K>(
-                tVgVnew, tVgV, tKVcKV, tKVpKV, binfo.actual_seqlen_k - n_block * kBlockN, binfo.seqlen_k_cache - n_block * kBlockN
-            );
+	    // TODO: compile
+            // flash::copy_w_min_idx<Is_even_K>(
+            //     tVgVnew, tVgV, tKVcKV, tKVpKV, binfo.actual_seqlen_k - n_block * kBlockN, binfo.seqlen_k_cache - n_block * kBlockN
+            // );
             tVgVnew.data() = tVgVnew.data() + (-int(kBlockN * params.vnew_row_stride));
             if (params.rotary_dim == 0) {
-                flash::copy_w_min_idx<Is_even_K>(
-                    tKgKnew, tKgK, tKVcKV, tKVpKV, binfo.actual_seqlen_k - n_block * kBlockN, binfo.seqlen_k_cache - n_block * kBlockN
-                );
+                // flash::copy_w_min_idx<Is_even_K>(
+                //     tKgKnew, tKgK, tKVcKV, tKVpKV, binfo.actual_seqlen_k - n_block * kBlockN, binfo.seqlen_k_cache - n_block * kBlockN
+                // );
             } else {
                 if (params.is_rotary_interleaved) {
                     // Don't clear OOB_K because we're writing to global memory
-                    flash::copy_rotary_interleaved<Is_even_K, /*Clear_OOB_K=*/false>(
-                        tKgKnew, tKgK, tRgCos, tRgSin, tKVcKV, binfo.actual_seqlen_k - n_block * kBlockN,
-                        binfo.seqlen_k_cache - n_block * kBlockN, params.d, params.rotary_dim
-                    );
+                    // flash::copy_rotary_interleaved<Is_even_K, /*Clear_OOB_K=*/false>(
+                    //     tKgKnew, tKgK, tRgCos, tRgSin, tKVcKV, binfo.actual_seqlen_k - n_block * kBlockN,
+                    //     binfo.seqlen_k_cache - n_block * kBlockN, params.d, params.rotary_dim
+                    // );
                     tRgCos.data() = tRgCos.data() + (-int(kBlockN * params.rotary_dim / 2));
                     tRgSin.data() = tRgSin.data() + (-int(kBlockN * params.rotary_dim / 2));
                 } else {
                     // Don't clear OOB_K because we're writing to global memory
-                    flash::copy_rotary_contiguous<Is_even_K, /*Clear_OOB_K=*/false>(
-                        tKgKnew, tKgK, tRgCosCont, tRgSinCont, tKVcKV, binfo.actual_seqlen_k - n_block * kBlockN,
-                        binfo.seqlen_k_cache - n_block * kBlockN, params.d, params.rotary_dim
-                    );
+                    // flash::copy_rotary_contiguous<Is_even_K, /*Clear_OOB_K=*/false>(
+                    //     tKgKnew, tKgK, tRgCosCont, tRgSinCont, tKVcKV, binfo.actual_seqlen_k - n_block * kBlockN,
+                    //     binfo.seqlen_k_cache - n_block * kBlockN, params.d, params.rotary_dim
+                    // );
                     tRgCosCont.data() = tRgCosCont.data() + (-int(kBlockN * params.rotary_dim / 2));
                     tRgSinCont.data() = tRgSinCont.data() + (-int(kBlockN * params.rotary_dim / 2));
-
                 }
             }
             tKgKnew.data() = tKgKnew.data() + (-int(kBlockN * params.knew_row_stride));
