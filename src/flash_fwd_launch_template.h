@@ -43,11 +43,7 @@ struct Flash_fwd_params : public Qkv_params {
     index_t o_row_stride;
     index_t o_head_stride;
 
-    // The pointer to the P matrix.
-    void * __restrict__ p_ptr;
-
     // The pointer to the softmax sum.
-    void * __restrict__ softmax_lse_ptr;
     void * __restrict__ softmax_lseaccum_ptr;
 
     // The dimensions.
@@ -63,10 +59,10 @@ struct Flash_fwd_params : public Qkv_params {
     const int* __restrict__ cu_seqlens_k = nullptr;
 
     // If provided, the actual length of each k sequence.
-    int * __restrict__ seqused_k;
+    int * __restrict__ seqused_k = nullptr;
 
-    void * __restrict__ knew_ptr;
-    void * __restrict__ vnew_ptr;
+    void * __restrict__ knew_ptr = nullptr;
+    void * __restrict__ vnew_ptr = nullptr;
 
     // The stride between rows of the Q, K and V matrices.
     index_t knew_batch_stride;
@@ -77,11 +73,11 @@ struct Flash_fwd_params : public Qkv_params {
     index_t vnew_head_stride;
 
     // The cos and sin matrices for rotary embedding.
-    void * __restrict__ rotary_cos_ptr;
-    void * __restrict__ rotary_sin_ptr;
+    void * __restrict__ rotary_cos_ptr = nullptr;
+    void * __restrict__ rotary_sin_ptr = nullptr;
 
     // The indices to index into the KV cache.
-    int * __restrict__ cache_batch_idx;
+    int * __restrict__ cache_batch_idx = nullptr;
 
     // Paged KV cache
     int * __restrict__ block_table;
@@ -96,7 +92,7 @@ struct Flash_fwd_params : public Qkv_params {
 
     int num_splits;  // For split-KV version
 
-    void * __restrict__ alibi_slopes_ptr;
+    void * __restrict__ alibi_slopes_ptr = nullptr;
     index_t alibi_slopes_batch_stride;
 
     // Local window size
