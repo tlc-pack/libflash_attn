@@ -15,6 +15,15 @@ add_library(flash_attn SHARED
   flash_fwd_hdim32_fp16_sm80.cu
   flash_fwd_hdim64_fp16_sm80.cu
   flash_fwd_hdim96_fp16_sm80.cu
+
+  flash_fwd_split_hdim128_fp16_sm80.cu
+  flash_fwd_split_hdim160_fp16_sm80.cu
+  flash_fwd_split_hdim192_fp16_sm80.cu
+  flash_fwd_split_hdim224_fp16_sm80.cu
+  flash_fwd_split_hdim256_fp16_sm80.cu
+  flash_fwd_split_hdim32_fp16_sm80.cu
+  flash_fwd_split_hdim64_fp16_sm80.cu
+  flash_fwd_split_hdim96_fp16_sm80.cu
 )
 
 set_target_properties(flash_attn PROPERTIES CUDA_ARCHITECTURES "80")
