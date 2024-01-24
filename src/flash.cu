@@ -1,13 +1,15 @@
 #include "flash.h"
-#include "flash_fwd_launch_template.h"
+#include "flash_internal.h"
+
+#include <string>
+#include <stdexcept>
 
 namespace flash_attn {
-
 
 inline void _assert(bool result, const char* const file, int const line, std::string const& info = "")
 {
   if (!result) {
-    throw std::runtime_error(std::string("[FT][ERROR] ") + info + " Assertion fail: " + file + ":"
+    throw std::runtime_error(std::string("[ERROR] ") + info + " Assertion fail: " + file + ":"
 			     + std::to_string(line) + " \n");
   }
 }
