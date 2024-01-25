@@ -37,7 +37,9 @@ struct Flash_fwd_params : public Qkv_params {
     void * __restrict__ softmax_lseaccum_ptr;
 
     // The dimensions.
-    int b, seqlen_q, seqlen_k, seqlen_knew, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded, rotary_dim;
+    int b, seqlen_q, seqlen_k, d, seqlen_q_rounded, seqlen_k_rounded, d_rounded;
+    int seqlen_knew = 0;
+    int rotary_dim = 0;
 
 
     // The scaling factors for the kernel.
@@ -55,12 +57,12 @@ struct Flash_fwd_params : public Qkv_params {
     void * __restrict__ vnew_ptr = nullptr;
 
     // The stride between rows of the Q, K and V matrices.
-    index_t knew_batch_stride;
-    index_t vnew_batch_stride;
-    index_t knew_row_stride;
-    index_t vnew_row_stride;
-    index_t knew_head_stride;
-    index_t vnew_head_stride;
+    index_t knew_batch_stride = 0;
+    index_t vnew_batch_stride = 0;
+    index_t knew_row_stride = 0;
+    index_t vnew_row_stride = 0;
+    index_t knew_head_stride = 0;
+    index_t vnew_head_stride = 0;
 
     // The cos and sin matrices for rotary embedding.
     void * __restrict__ rotary_cos_ptr = nullptr;
@@ -76,11 +78,11 @@ struct Flash_fwd_params : public Qkv_params {
 
     // If is_seqlens_k_cumulative, then seqlen_k is cu_seqlens_k[bidb + 1] - cu_seqlens_k[bidb].
     // Otherwise it's cu_seqlens_k[bidb], i.e., we use cu_seqlens_k to store the sequence lengths of K.
-    bool is_seqlens_k_cumulative;
+    bool is_seqlens_k_cumulative = false;
 
-    bool is_rotary_interleaved;
+    bool is_rotary_interleaved = false;
 
-    int num_splits;  // For split-KV version
+    int num_splits = 0;  // For split-KV version
 
     void * __restrict__ alibi_slopes_ptr = nullptr;
     index_t alibi_slopes_batch_stride;

@@ -95,8 +95,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
         + (n_block_max - 1) * kBlockN * params.k_row_stride + (bidh / params.h_h_k_ratio) * params.k_head_stride;
     const index_t row_offset_v = binfo.k_offset(params.v_batch_stride, params.v_row_stride, bidb)
         + (n_block_max - 1) * kBlockN * params.v_row_stride + (bidh / params.h_h_k_ratio) * params.v_head_stride;
-    const index_t row_offset_p = ((bidb * params.h + bidh) * params.seqlen_q_rounded
-        + m_block * kBlockM) * params.seqlen_k_rounded + (n_block_max - 1) * kBlockN;
 
     Tensor gQ = make_tensor(make_gmem_ptr(reinterpret_cast<const Element *>(params.q_ptr) + row_offset_q),
                             Shape<Int<kBlockM>, Int<kHeadDim>>{},
@@ -368,7 +366,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
 
     const index_t row_offset_o = binfo.q_offset(params.o_batch_stride, params.o_row_stride, bidb)
         + m_block * kBlockM * params.o_row_stride + bidh * params.o_head_stride;
-    const index_t row_offset_lse = (bidb * params.h + bidh) * params.seqlen_q + m_block * kBlockM;
     Tensor gO = make_tensor(make_gmem_ptr(reinterpret_cast<Element *>(params.o_ptr) + row_offset_o),
                             Shape<Int<kBlockM>, Int<kHeadDim>>{},
                             make_stride(params.o_row_stride, _1{}));
@@ -382,12 +379,6 @@ inline __device__ void compute_attn_1rowblock(const Params &params, const int bi
 
     Tensor tOrO = make_tensor<Element>(shape(tOgO));
     cute::copy(gmem_tiled_copy_O, tOsO, tOrO);
-
-    Tensor caccO = make_identity_tensor(Shape<Int<kBlockM>, Int<kHeadDim>>{});    // (BLK_M,BLK_K) -> (blk_m,blk_k)
-    Tensor taccOcO = thr_mma.partition_C(caccO);                           // (MMA,MMA_M,MMA_K)
-    static_assert(decltype(size<0>(taccOcO))::value == 4);
-    // Convert to ((2, 2), MMA_M, MMA_K) then take only the row indices.
-    Tensor taccOcO_row = logical_divide(taccOcO, Shape<_2>{})(make_coord(0, _), _, 0);
 
     // Construct identity layout for sO
     Tensor cO = make_identity_tensor(make_shape(size<0>(sO), size<1>(sO)));    // (BLK_M,BLK_K) -> (blk_m,blk_k)
