@@ -202,6 +202,8 @@ void flash_attention_var_len_forward(half *q_ptr,
   params.window_size_left = window_size_left;
   params.window_size_right = window_size_right;
 
+  params.is_seqlens_k_cumulative = true;
+
   run(params, stream);
 }
 
