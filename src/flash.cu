@@ -269,9 +269,10 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
 			                   half* kcache_ptr,
                        			   half* vcache_ptr,
 					   int32_t* block_table_ptr,
+					   int32_t* seqlens_k_ptr,
 					   half* softmax_lse_accum_ptr,
 					   half* output_accum_ptr,
-                          	           half* output_ptr,
+                                           half* output_ptr,
                       			   int batch_size,
                       			   int seqlen_q,
                     			   int num_heads,
@@ -351,12 +352,14 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
   params.window_size_left = window_size_left;
   params.window_size_right = window_size_right;
 
-  params.is_seqlens_k_cumulative = true;
   params.rotary_dim = 0;
 
   params.block_table = block_table_ptr;
   params.page_block_size = block_size;
   params.block_table_batch_stride = block_table_batch_stride;
+
+  params.cu_seqlens_k = seqlens_k_ptr;
+  params.is_seqlens_k_cumulative = false;
 
   int device;
   cudaGetDevice(&device);
