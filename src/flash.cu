@@ -386,10 +386,8 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
   }
   CHECK(params.num_splits <= 128);
 
-  if (params.num_splits > 1) {
-      params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
-      params.oaccum_ptr = output_accum_ptr;
-  }
+  params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
+  params.oaccum_ptr = output_accum_ptr;
 
   run_splitkv(params, stream);
 }

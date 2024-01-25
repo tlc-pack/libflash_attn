@@ -633,7 +633,6 @@ inline __device__ void compute_attn_1rowblock_splitkv(const Params &params, cons
         auto tKgK_data = tKgK.data();
         auto tVgV_data = tVgV.data();
         for (int n_block = n_block_max - 1; n_block >= n_block_copy_min; n_block--) {
-	    // TODO: compile
             flash::copy_w_min_idx<Is_even_K>(
                 tVgVnew, tVgV, tKVcKV, tKVpKV, binfo.actual_seqlen_k - n_block * kBlockN, binfo.seqlen_k_cache - n_block * kBlockN
             );
