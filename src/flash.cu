@@ -309,6 +309,8 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
   if (seqlen_q == 1) {
     is_causal = false;
   }
+  if (is_causal) { window_size_right = 0; }
+
   if (window_size_left >= seqlen_k) { window_size_left = -1; }
   if (window_size_right >= seqlen_k) { window_size_right = -1; }
 
