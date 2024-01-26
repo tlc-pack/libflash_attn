@@ -236,8 +236,7 @@ void run_mha_fwd_hdim224(Flash_fwd_params &params, cudaStream_t stream) {
     int device;
     cudaGetDevice(&device);
     int max_smem_per_block;
-    cudaError status_ = cudaDeviceGetAttribute(
-        &max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
+    cudaDeviceGetAttribute(&max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         if (max_smem_per_block >= 2 * Headdim * (128 + 2 * 64)) {  // 112 KB
             run_flash_fwd<Flash_fwd_kernel_traits<Headdim, 128, 64, 8, false, false, T>, Is_causal>(params, stream);
@@ -259,10 +258,8 @@ void run_mha_fwd_hdim256(Flash_fwd_params &params, cudaStream_t stream) {
     int device;
     cudaGetDevice(&device);
     int max_smem_per_sm, max_smem_per_block;
-    cudaError status_ = cudaDeviceGetAttribute(
-        &max_smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device);
-    status_ = cudaDeviceGetAttribute(
-        &max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
+    cudaDeviceGetAttribute(&max_smem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device);
+    cudaDeviceGetAttribute(&max_smem_per_block, cudaDevAttrMaxSharedMemoryPerBlockOptin, device);
     BOOL_SWITCH(params.is_causal, Is_causal, [&] {
         // For A100, we want to run with 128 x 64 (128KB smem).
         // For H100 we want to run with 64 x 64 (96KB smem) since then we can get 2 CTAs per SM.
