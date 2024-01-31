@@ -1,5 +1,5 @@
 struct Qkv_params {
-    using index_t = uint32_t;
+    using index_t = int64_t;
     // The QKV matrices.
     void *__restrict__ q_ptr;
     void *__restrict__ k_ptr;
