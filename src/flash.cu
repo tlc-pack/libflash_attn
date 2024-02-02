@@ -270,6 +270,58 @@ void run_splitkv(Flash_fwd_params params, cudaStream_t stream) {
   }
 }
 
+void set_splitkv_params(Flash_fwd_params& params,
+                        int32_t* block_table_ptr,
+                        int32_t* seqlens_k_ptr,
+                        float* softmax_lse_accum_ptr,
+                        float* output_accum_ptr,
+			int batch_size,
+                        int seqlen_q,
+			int seqlen_k,
+			int num_heads,
+                        int head_dim,
+                        int num_blocks,
+                        int block_size,
+                        int max_num_blocks_per_seq,
+                        int block_table_batch_stride,
+                        int num_splits) {
+  params.rotary_dim = 0;
+  params.block_table = block_table_ptr;
+  params.page_block_size = block_size;
+  params.block_table_batch_stride = block_table_batch_stride;
+  params.cu_seqlens_k = seqlens_k_ptr;
+  params.is_seqlens_k_cumulative = false;
+
+  int device;
+  cudaGetDevice(&device);
+  int major, minor;
+  cudaDeviceGetAttribute(
+        &major, cudaDevAttrComputeCapabilityMajor, device);
+  cudaDeviceGetAttribute(
+        &minor, cudaDevAttrComputeCapabilityMinor, device);
+  params.sm = major * 10 + minor;
+
+  // This needs to match with run_mha_fwd_splitkv_dispatch
+  const int block_n = head_dim <= 64 ? 256 : (head_dim <= 128 ? 128 : 64);
+  const int num_n_blocks = (seqlen_k + block_n - 1) / block_n;
+
+  // Technically kBlockM = 64 only for the splitKV kernels, not the standard kernel.
+  // In any case we don't expect seqlen_q to be larger than 64 for inference.
+  const int num_m_blocks = (seqlen_q + 64 - 1) / 64;
+  params.num_splits = num_splits;
+
+  if (num_splits < 1) {
+    int sm_count;
+    cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device);
+    params.num_splits = num_splits_heuristic(batch_size * num_heads * num_m_blocks, sm_count, num_n_blocks, 128);
+  }
+  CHECK(params.num_splits <= 128);
+
+  params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
+  params.oaccum_ptr = output_accum_ptr;
+}
+
+
 void flash_attention_splitkv_paged_forward(half* q_ptr,
 			                   half* kcache_ptr,
                        			   half* vcache_ptr,
@@ -319,40 +371,10 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
 			       softmax_scale, is_causal,
 			       window_size_left, window_size_right);
 
-  params.rotary_dim = 0;
-  params.block_table = block_table_ptr;
-  params.page_block_size = block_size;
-  params.block_table_batch_stride = block_table_batch_stride;
-  params.cu_seqlens_k = seqlens_k_ptr;
-  params.is_seqlens_k_cumulative = false;
-
-  int device;
-  cudaGetDevice(&device);
-  int major, minor;
-  cudaDeviceGetAttribute(
-        &major, cudaDevAttrComputeCapabilityMajor, device);
-  cudaDeviceGetAttribute(
-        &minor, cudaDevAttrComputeCapabilityMinor, device);
-  params.sm = major * 10 + minor;
-
-  // This needs to match with run_mha_fwd_splitkv_dispatch
-  const int block_n = head_dim <= 64 ? 256 : (head_dim <= 128 ? 128 : 64);
-  const int num_n_blocks = (seqlen_k + block_n - 1) / block_n;
-
-  // Technically kBlockM = 64 only for the splitKV kernels, not the standard kernel.
-  // In any case we don't expect seqlen_q to be larger than 64 for inference.
-  const int num_m_blocks = (seqlen_q + 64 - 1) / 64;
-  params.num_splits = num_splits;
-
-  if (num_splits < 1) {
-    int sm_count;
-    cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device);
-    params.num_splits = num_splits_heuristic(batch_size * num_heads * num_m_blocks, sm_count, num_n_blocks, 128);
-  }
-  CHECK(params.num_splits <= 128);
-
-  params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
-  params.oaccum_ptr = output_accum_ptr;
+  set_splitkv_params(params, block_table_ptr, seqlens_k_ptr, softmax_lse_accum_ptr,
+                     output_accum_ptr, batch_size, seqlen_q, seqlen_k, num_heads,
+                     head_dim, num_blocks, block_size, max_num_blocks_per_seq,
+		     block_table_batch_stride, num_splits);
 
   run_splitkv(params, stream);
 }
@@ -400,6 +422,36 @@ void flash_attention_splitkv_paged_fused_rope_forward(half* q_ptr,
 						      int window_size_right,
 						      int num_splits,
 						      cudaStream_t stream) {
+  const int seqlen_k = max_num_blocks_per_seq * block_size;
+
+  auto params = get_fwd_params(q_ptr, kcache_ptr, vcache_ptr, output_ptr,
+			       batch_size, seqlen_q, seqlen_k,
+			       num_heads, num_heads_k, head_dim,
+			       q_batch_stride, k_batch_stride,
+			       v_batch_stride, o_batch_stride,
+			       q_head_stride, k_head_stride,
+			       v_head_stride, o_head_stride,
+			       q_row_stride, k_row_stride,
+			       v_row_stride, o_row_stride,
+			       softmax_scale, is_causal,
+			       window_size_left, window_size_right);
+
+  set_splitkv_params(params, block_table_ptr, seqlens_k_ptr, softmax_lse_accum_ptr,
+                     output_accum_ptr, batch_size, seqlen_q, seqlen_k, num_heads,
+                     head_dim, num_blocks, block_size, max_num_blocks_per_seq,
+		     block_table_batch_stride, num_splits);
+
+  params.seqlen_knew = seqlen_q;
+  params.knew_ptr = knew_ptr;
+  params.vnew_ptr = vnew_ptr;
+  params.knew_batch_stride = knew_batch_stride;
+  params.vnew_batch_stride = vnew_batch_stride;
+  params.knew_row_stride = knew_row_stride;
+  params.vnew_row_stride = vnew_row_stride;
+  params.knew_head_stride = knew_head_stride;
+  params.vnew_head_stride = vnew_head_stride;
+
+  run_splitkv(params, stream);
 }
 
 } // namespace flash_attn
