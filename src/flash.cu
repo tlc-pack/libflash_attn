@@ -47,33 +47,32 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
   }
 }
 
-void flash_attention_forward(half* q_ptr,
-			     half* k_ptr,
-			     half* v_ptr,
-			     half* output_ptr,
-			     int batch_size,
-			     int seqlen_q,
-			     int seqlen_k,
-			     int num_heads,
-			     int num_heads_k,
-			     int head_dim,
-			     int q_batch_stride,
-			     int k_batch_stride,
-			     int v_batch_stride,
-			     int o_batch_stride,
-			     int q_head_stride,
-			     int k_head_stride,
-			     int v_head_stride,
-			     int o_head_stride,
-			     int q_row_stride,
-			     int k_row_stride,
-			     int v_row_stride,
-			     int o_row_stride,
-			     float softmax_scale,
-			     bool is_causal,
-			     int window_size_left,
-			     int window_size_right,
-			     cudaStream_t stream) {
+Flash_fwd_params get_fwd_params(half* q_ptr,
+				half* k_ptr,
+				half* v_ptr,
+				half* output_ptr,
+				int batch_size,
+				int seqlen_q,
+				int seqlen_k,
+				int num_heads,
+				int num_heads_k,
+				int head_dim,
+				int q_batch_stride,
+				int k_batch_stride,
+				int v_batch_stride,
+				int o_batch_stride,
+				int q_head_stride,
+				int k_head_stride,
+				int v_head_stride,
+				int o_head_stride,
+				int q_row_stride,
+				int k_row_stride,
+				int v_row_stride,
+				int o_row_stride,
+				float softmax_scale,
+				bool is_causal,
+				int window_size_left,
+				int window_size_right) {
   CHECK(head_dim % 8 == 0);
   CHECK(head_dim <= 256);
 
@@ -128,6 +127,47 @@ void flash_attention_forward(half* q_ptr,
   params.window_size_left = window_size_left;
   params.window_size_right = window_size_right;
 
+  return params;
+}
+
+void flash_attention_forward(half* q_ptr,
+			     half* k_ptr,
+			     half* v_ptr,
+			     half* output_ptr,
+			     int batch_size,
+			     int seqlen_q,
+			     int seqlen_k,
+			     int num_heads,
+			     int num_heads_k,
+			     int head_dim,
+			     int q_batch_stride,
+			     int k_batch_stride,
+			     int v_batch_stride,
+			     int o_batch_stride,
+			     int q_head_stride,
+			     int k_head_stride,
+			     int v_head_stride,
+			     int o_head_stride,
+			     int q_row_stride,
+			     int k_row_stride,
+			     int v_row_stride,
+			     int o_row_stride,
+			     float softmax_scale,
+			     bool is_causal,
+			     int window_size_left,
+			     int window_size_right,
+			     cudaStream_t stream) {
+  auto params = get_fwd_params(q_ptr, k_ptr, v_ptr, output_ptr,
+			       batch_size, seqlen_q, seqlen_k,
+			       num_heads, num_heads_k, head_dim,
+			       q_batch_stride, k_batch_stride,
+			       v_batch_stride, o_batch_stride,
+			       q_head_stride, k_head_stride,
+			       v_head_stride, o_head_stride,
+			       q_row_stride, k_row_stride,
+			       v_row_stride, o_row_stride,
+			       softmax_scale, is_causal,
+			       window_size_left, window_size_right);
   run(params, stream);
 }
 
@@ -156,56 +196,19 @@ void flash_attention_var_len_forward(half *q_ptr,
 				     int window_size_left,
 				     int window_size_right,
 				     cudaStream_t stream) {
-  CHECK(head_dim % 8 == 0);
-  CHECK(head_dim <= 256);
+  auto params = get_fwd_params(q_ptr, k_ptr, v_ptr, output_ptr,
+			       batch_size, max_seqlen_q, max_seqlen_k,
+			       num_heads, num_heads_k, head_dim,
+			       0, 0, 0, 0, // batch strides
+			       q_head_stride, k_head_stride,
+			       v_head_stride, o_head_stride,
+			       q_row_stride, k_row_stride,
+			       v_row_stride, o_row_stride,
+			       softmax_scale, is_causal,
+			       window_size_left, window_size_right);
 
-  // causal=true is the same as causal=false in this case
-  if (max_seqlen_q == 1) { is_causal = false; }
-  if (is_causal) { window_size_right = 0; }
-
-  if (window_size_left >= max_seqlen_k) { window_size_left = -1; }
-  if (window_size_right >= max_seqlen_k) { window_size_right = -1; }
-
-  auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
-  const int head_dim_rounded = round_multiple(head_dim, 32);
-  const int seqlen_q_rounded = round_multiple(max_seqlen_q, 128);
-  const int seqlen_k_rounded = round_multiple(max_seqlen_k, 128);
-
-  Flash_fwd_params params;
-  params.q_ptr = q_ptr;
-  params.k_ptr = k_ptr;
-  params.v_ptr = v_ptr;
   params.cu_seqlens_q = cu_seqlens_q;
   params.cu_seqlens_k = cu_seqlens_k;
-  params.o_ptr = output_ptr;
-  // Causal is the special case where window_size_right == 0 and window_size_left < 0.
-  // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
-  params.is_causal = window_size_left < 0 && window_size_right == 0;
-  params.b = batch_size;
-  params.h = num_heads;
-  params.h_k = num_heads_k;
-  params.h_h_k_ratio = num_heads / num_heads_k;
-  params.seqlen_q = max_seqlen_q;
-  params.seqlen_k = max_seqlen_k;
-  params.seqlen_q_rounded = seqlen_q_rounded;
-  params.seqlen_k_rounded = seqlen_k_rounded;
-  params.d = head_dim;
-  params.d_rounded = head_dim_rounded;
-  params.scale_softmax = softmax_scale;
-  params.scale_softmax_log2 = softmax_scale * M_LOG2E;
-
-  params.q_head_stride = q_head_stride;
-  params.q_row_stride = q_row_stride;
-  params.k_head_stride = k_head_stride;
-  params.k_row_stride = k_row_stride;
-  params.v_head_stride = v_head_stride;
-  params.v_row_stride = v_row_stride;
-  params.o_head_stride = o_head_stride;
-  params.o_row_stride = o_row_stride;
-
-  params.window_size_left = window_size_left;
-  params.window_size_right = window_size_right;
-
   params.is_seqlens_k_cumulative = true;
 
   run(params, stream);
@@ -269,6 +272,58 @@ void run_splitkv(Flash_fwd_params params, cudaStream_t stream) {
   }
 }
 
+void set_splitkv_params(Flash_fwd_params& params,
+                        int32_t* block_table_ptr,
+                        int32_t* seqlens_k_ptr,
+                        float* softmax_lse_accum_ptr,
+                        float* output_accum_ptr,
+			int batch_size,
+                        int seqlen_q,
+			int seqlen_k,
+			int num_heads,
+                        int head_dim,
+                        int num_blocks,
+                        int block_size,
+                        int max_num_blocks_per_seq,
+                        int block_table_batch_stride,
+                        int num_splits) {
+  params.rotary_dim = 0;
+  params.block_table = block_table_ptr;
+  params.page_block_size = block_size;
+  params.block_table_batch_stride = block_table_batch_stride;
+  params.cu_seqlens_k = seqlens_k_ptr;
+  params.is_seqlens_k_cumulative = false;
+
+  int device;
+  cudaGetDevice(&device);
+  int major, minor;
+  cudaDeviceGetAttribute(
+        &major, cudaDevAttrComputeCapabilityMajor, device);
+  cudaDeviceGetAttribute(
+        &minor, cudaDevAttrComputeCapabilityMinor, device);
+  params.sm = major * 10 + minor;
+
+  // This needs to match with run_mha_fwd_splitkv_dispatch
+  const int block_n = head_dim <= 64 ? 256 : (head_dim <= 128 ? 128 : 64);
+  const int num_n_blocks = (seqlen_k + block_n - 1) / block_n;
+
+  // Technically kBlockM = 64 only for the splitKV kernels, not the standard kernel.
+  // In any case we don't expect seqlen_q to be larger than 64 for inference.
+  const int num_m_blocks = (seqlen_q + 64 - 1) / 64;
+  params.num_splits = num_splits;
+
+  if (num_splits < 1) {
+    int sm_count;
+    cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device);
+    params.num_splits = num_splits_heuristic(batch_size * num_heads * num_m_blocks, sm_count, num_n_blocks, 128);
+  }
+  CHECK(params.num_splits <= 128);
+
+  params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
+  params.oaccum_ptr = output_accum_ptr;
+}
+
+
 void flash_attention_splitkv_paged_forward(half* q_ptr,
 			                   half* kcache_ptr,
                        			   half* vcache_ptr,
@@ -304,98 +359,24 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
                     			   int window_size_right,
 					   int num_splits,
                     			   cudaStream_t stream) {
-  CHECK(head_dim % 8 == 0);
-  CHECK(head_dim <= 256);
-
   const int seqlen_k = max_num_blocks_per_seq * block_size;
 
-  // causal=true is the same as causal=false in this case
-  if (seqlen_q == 1) {
-    is_causal = false;
-  }
-  if (is_causal) { window_size_right = 0; }
+  auto params = get_fwd_params(q_ptr, kcache_ptr, vcache_ptr, output_ptr,
+			       batch_size, seqlen_q, seqlen_k,
+			       num_heads, num_heads_k, head_dim,
+			       q_batch_stride, k_batch_stride,
+			       v_batch_stride, o_batch_stride,
+			       q_head_stride, k_head_stride,
+			       v_head_stride, o_head_stride,
+			       q_row_stride, k_row_stride,
+			       v_row_stride, o_row_stride,
+			       softmax_scale, is_causal,
+			       window_size_left, window_size_right);
 
-  if (window_size_left >= seqlen_k) { window_size_left = -1; }
-  if (window_size_right >= seqlen_k) { window_size_right = -1; }
-
-  auto round_multiple = [](int x, int m) { return (x + m - 1) / m * m; };
-  const int head_dim_rounded = round_multiple(head_dim, 32);
-  const int seqlen_q_rounded = round_multiple(seqlen_q, 128);
-  const int seqlen_k_rounded = round_multiple(seqlen_k, 128);
-
-  Flash_fwd_params params;
-  params.q_ptr = q_ptr;
-  params.k_ptr = kcache_ptr;
-  params.v_ptr = vcache_ptr;
-  params.o_ptr = output_ptr;
-  // Causal is the special case where window_size_right == 0 and window_size_left < 0.
-  // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
-  params.is_causal = window_size_left < 0 && window_size_right == 0;
-  params.b = batch_size;
-  params.h = num_heads;
-  params.h_k = num_heads_k;
-  params.h_h_k_ratio = num_heads / num_heads_k;
-  params.seqlen_q = seqlen_q;
-  params.seqlen_k = seqlen_k;
-  params.seqlen_q_rounded = seqlen_q_rounded;
-  params.seqlen_k_rounded = seqlen_k_rounded;
-  params.d = head_dim;
-  params.d_rounded = head_dim_rounded;
-  params.scale_softmax = softmax_scale;
-  params.scale_softmax_log2 = softmax_scale * M_LOG2E;
-
-  params.q_batch_stride = q_batch_stride;
-  params.q_head_stride = q_head_stride;
-  params.q_row_stride = q_row_stride;
-  params.k_batch_stride = k_batch_stride;
-  params.k_head_stride = k_head_stride;
-  params.k_row_stride = k_row_stride;
-  params.v_batch_stride = v_batch_stride;
-  params.v_head_stride = v_head_stride;
-  params.v_row_stride = v_row_stride;
-  params.o_batch_stride = o_batch_stride;
-  params.o_head_stride = o_head_stride;
-  params.o_row_stride = o_row_stride;
-
-  params.window_size_left = window_size_left;
-  params.window_size_right = window_size_right;
-
-  params.rotary_dim = 0;
-
-  params.block_table = block_table_ptr;
-  params.page_block_size = block_size;
-  params.block_table_batch_stride = block_table_batch_stride;
-
-  params.cu_seqlens_k = seqlens_k_ptr;
-  params.is_seqlens_k_cumulative = false;
-
-  int device;
-  cudaGetDevice(&device);
-  int major, minor;
-  cudaDeviceGetAttribute(
-        &major, cudaDevAttrComputeCapabilityMajor, device);
-  cudaDeviceGetAttribute(
-        &minor, cudaDevAttrComputeCapabilityMinor, device);
-  params.sm = major * 10 + minor;
-
-  // This needs to match with run_mha_fwd_splitkv_dispatch
-  const int block_n = head_dim <= 64 ? 256 : (head_dim <= 128 ? 128 : 64);
-  const int num_n_blocks = (seqlen_k + block_n - 1) / block_n;
-
-  // Technically kBlockM = 64 only for the splitKV kernels, not the standard kernel.
-  // In any case we don't expect seqlen_q to be larger than 64 for inference.
-  const int num_m_blocks = (seqlen_q + 64 - 1) / 64;
-  params.num_splits = num_splits;
-
-  if (num_splits < 1) {
-    int sm_count;
-    cudaDeviceGetAttribute(&sm_count, cudaDevAttrMultiProcessorCount, device);
-    params.num_splits = num_splits_heuristic(batch_size * num_heads * num_m_blocks, sm_count, num_n_blocks, 128);
-  }
-  CHECK(params.num_splits <= 128);
-
-  params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
-  params.oaccum_ptr = output_accum_ptr;
+  set_splitkv_params(params, block_table_ptr, seqlens_k_ptr, softmax_lse_accum_ptr,
+                     output_accum_ptr, batch_size, seqlen_q, seqlen_k, num_heads,
+                     head_dim, num_blocks, block_size, max_num_blocks_per_seq,
+		     block_table_batch_stride, num_splits);
 
   run_splitkv(params, stream);
 }
