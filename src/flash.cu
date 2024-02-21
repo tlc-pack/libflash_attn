@@ -96,7 +96,9 @@ void flash_attention_forward(half* q_ptr,
   params.k_ptr = k_ptr;
   params.v_ptr = v_ptr;
   params.o_ptr = output_ptr;
-  params.is_causal = is_causal;
+  // Causal is the special case where window_size_right == 0 and window_size_left < 0.
+  // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
+  params.is_causal = window_size_left < 0 && window_size_right == 0;
   params.b = batch_size;
   params.h = num_heads;
   params.h_k = num_heads_k;
@@ -176,7 +178,9 @@ void flash_attention_var_len_forward(half *q_ptr,
   params.cu_seqlens_q = cu_seqlens_q;
   params.cu_seqlens_k = cu_seqlens_k;
   params.o_ptr = output_ptr;
-  params.is_causal = is_causal;
+  // Causal is the special case where window_size_right == 0 and window_size_left < 0.
+  // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
+  params.is_causal = window_size_left < 0 && window_size_right == 0;
   params.b = batch_size;
   params.h = num_heads;
   params.h_k = num_heads_k;
@@ -324,7 +328,9 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
   params.k_ptr = kcache_ptr;
   params.v_ptr = vcache_ptr;
   params.o_ptr = output_ptr;
-  params.is_causal = is_causal;
+  // Causal is the special case where window_size_right == 0 and window_size_left < 0.
+  // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
+  params.is_causal = window_size_left < 0 && window_size_right == 0;
   params.b = batch_size;
   params.h = num_heads;
   params.h_k = num_heads_k;
