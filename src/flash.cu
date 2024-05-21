@@ -3,6 +3,7 @@
 
 #include <string>
 #include <stdexcept>
+#include <vector>
 
 namespace flash_attn {
 
@@ -274,7 +275,7 @@ void run_splitkv(Flash_fwd_params params, cudaStream_t stream) {
 
 void set_splitkv_params(Flash_fwd_params& params,
                         int32_t* block_table_ptr,
-                        int32_t* seqlens_k_ptr,
+                        const int32_t* seqlens_k_ptr,
                         float* softmax_lse_accum_ptr,
                         float* output_accum_ptr,
 			int batch_size,
@@ -350,10 +351,33 @@ void flash_attention_var_len_paged_kv_forward(half *q_ptr,
 					      int v_row_stride,
 					      int o_row_stride,
 					      float softmax_scale,
+                                              bool is_causal,
 					      int window_size_left,
 					      int window_size_right,
 					      int num_splits,
-					      cudaStream_t stream = nullptr) {
+					      cudaStream_t stream) {
+  auto params = get_fwd_params(q_ptr, kcache_ptr, vcache_ptr, output_ptr,
+			       batch_size, max_seqlen_q, max_seqlen_k,
+			       num_heads, num_heads_k, head_dim,
+			       0, 0, 0, 0, // batch strides
+			       q_head_stride, k_head_stride,
+			       v_head_stride, o_head_stride,
+			       q_row_stride, k_row_stride,
+			       v_row_stride, o_row_stride,
+			       softmax_scale, is_causal,
+			       window_size_left, window_size_right);
+
+  params.cu_seqlens_q = cu_seqlens_q;
+  params.cu_seqlens_k = cu_seqlens_k;
+
+  set_splitkv_params(params, block_table_ptr, cu_seqlens_k, softmax_lse_accum_ptr,
+                     output_accum_ptr, batch_size, max_seqlen_q, max_seqlen_k, num_heads,
+                     head_dim, num_blocks, block_size,
+		     block_table_batch_stride, num_splits);
+
+  params.is_seqlens_k_cumulative = true;
+
+  run_splitkv(params, stream);
 }
 
 
