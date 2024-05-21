@@ -284,7 +284,6 @@ void set_splitkv_params(Flash_fwd_params& params,
                         int head_dim,
                         int num_blocks,
                         int block_size,
-                        int max_num_blocks_per_seq,
                         int block_table_batch_stride,
                         int num_splits) {
   params.rotary_dim = 0;
@@ -321,6 +320,40 @@ void set_splitkv_params(Flash_fwd_params& params,
 
   params.softmax_lseaccum_ptr = softmax_lse_accum_ptr;
   params.oaccum_ptr = output_accum_ptr;
+}
+
+void flash_attention_var_len_paged_kv_forward(half *q_ptr,
+                                              half *kcache_ptr,  // num_blocks x page_block_size x num_heads_k x head_size
+                                              half *vcache_ptr,  // num_blocks x page_block_size x num_heads_k x head_size
+                                              const int *cu_seqlens_q,
+                                              const int *cu_seqlens_k,
+	                                      int32_t* block_table_ptr,
+			                      int num_blocks,
+                                              int block_size,
+                                              int max_num_blocks_per_seq,
+					      int block_table_batch_stride,
+					      float* softmax_lse_accum_ptr,
+					      float* output_accum_ptr,
+					      half* output_ptr,
+					      int batch_size,
+					      int max_seqlen_q,
+					      int max_seqlen_k,
+					      int num_heads,
+					      int num_heads_k,
+					      int head_dim,
+					      int q_head_stride,
+					      int k_head_stride,
+					      int v_head_stride,
+					      int o_head_stride,
+					      int q_row_stride,
+					      int k_row_stride,
+					      int v_row_stride,
+					      int o_row_stride,
+					      float softmax_scale,
+					      int window_size_left,
+					      int window_size_right,
+					      int num_splits,
+					      cudaStream_t stream = nullptr) {
 }
 
 
@@ -375,7 +408,7 @@ void flash_attention_splitkv_paged_forward(half* q_ptr,
 
   set_splitkv_params(params, block_table_ptr, seqlens_k_ptr, softmax_lse_accum_ptr,
                      output_accum_ptr, batch_size, seqlen_q, seqlen_k, num_heads,
-                     head_dim, num_blocks, block_size, max_num_blocks_per_seq,
+                     head_dim, num_blocks, block_size,
 		     block_table_batch_stride, num_splits);
 
   run_splitkv(params, stream);

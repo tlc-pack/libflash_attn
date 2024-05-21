@@ -68,6 +68,40 @@ void flash_attention_var_len_forward(half *q_ptr,
 				     cudaStream_t stream = nullptr);
 
 
+void flash_attention_var_len_paged_kv_forward(half *q_ptr,
+                                              half *kcache_ptr,  // num_blocks x page_block_size x num_heads_k x head_size
+                                              half *vcache_ptr,  // num_blocks x page_block_size x num_heads_k x head_size
+                                              const int *cu_seqlens_q,
+                                              const int *cu_seqlens_k,
+	                                      int32_t* block_table_ptr,
+			                      int num_blocks,
+                                              int block_size,
+                                              int max_num_blocks_per_seq,
+					      int block_table_batch_stride,
+					      float* softmax_lse_accum_ptr,
+					      float* output_accum_ptr,
+					      half* output_ptr,
+					      int batch_size,
+					      int max_seqlen_q,
+					      int max_seqlen_k,
+					      int num_heads,
+					      int num_heads_k,
+					      int head_dim,
+					      int q_head_stride,
+					      int k_head_stride,
+					      int v_head_stride,
+					      int o_head_stride,
+					      int q_row_stride,
+					      int k_row_stride,
+					      int v_row_stride,
+					      int o_row_stride,
+					      float softmax_scale,
+					      int window_size_left = -1,
+					      int window_size_right = -1,
+					      int num_splits = 0,
+					      cudaStream_t stream = nullptr);
+
+
 void flash_attention_splitkv_paged_forward(half* q_ptr,
 			                   half* kcache_ptr,
                        			   half* vcache_ptr,
