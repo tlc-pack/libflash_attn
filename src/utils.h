@@ -15,7 +15,6 @@
 #endif
 
 #include <cute/tensor.hpp>
-// #include <cute/algorithm/copy.hpp>
 #include <cute/algorithm/gemm.hpp>
 
 #include <cutlass/array.h>
