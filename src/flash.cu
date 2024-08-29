@@ -30,7 +30,6 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
 
   // call method in hopper dir
   if (params.d >= 64) {
-  // if (0) {
     if (params.sm >= 90) {
       if (!params.is_e4m3) {
         if (params.d == 64) {

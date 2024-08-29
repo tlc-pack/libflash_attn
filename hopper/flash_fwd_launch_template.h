@@ -9,7 +9,7 @@
 #include "cutlass/cluster_launch.hpp"
 #include "cutlass/cutlass.h"
 #include "flash_fwd_kernel.h"
-#include "flash_internal.h"
+#include "../src/flash_internal.h"
 #include "kernel_traits.h"
 #include "seq_len.h"
 #include "static_switch.h"
