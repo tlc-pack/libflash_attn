@@ -14,6 +14,7 @@
 #include "cutlass/pipeline/pipeline.hpp"
 
 #include "flash.h"
+#include "utils.h"
 #include "softmax.h"
 #include "tile_scheduler.hpp"
 #include "mainloop_fwd_sm90_tma_gmma_ws.hpp"
@@ -177,7 +178,7 @@ __global__ void __launch_bounds__(Ktraits::kNWarps * cutlass::NumThreadsPerWarp,
                                     tOrO, softmax, n_block_max, threadIdx.x - NumCopyThreads, work_idx, m_block, shared_storage,
                                     seqlen_traits_q, seqlen_traits_k);
                                     // tOrO, softmax, n_block_max, threadIdx.x - NumCopyThreads + (work_idx >> 30), work_idx, shared_storage);
-            collective_epilogue.store(epilogue_params, tOrO, softmax.row_sum, shared_storage, tiled_mma1,
+            collective_epilogue.store(epilogue_params, tOrO, shared_storage, tiled_mma1,
                                       threadIdx.x - NumCopyThreads, block_coord, seqlen_traits_q);
 
             ++work_idx;
@@ -368,10 +369,10 @@ __global__ void __launch_bounds__(Ktraits::kNWarps * cutlass::NumThreadsPerWarp,
                 shared_storage, seqlen_traits_q, seqlen_traits_k); 
 
         #ifndef NO_FP8_COLUMN_PERMUTE
-            collective_epilogue.store_fp8(epilogue_params, tOrO, softmax.row_sum, shared_storage, tiled_mma1,
+            collective_epilogue.store_fp8(epilogue_params, tOrO, shared_storage, tiled_mma1,
                                       threadIdx.x - NumCopyThreads, block_coord, seqlen_traits_q);
         #else
-            collective_epilogue.store(epilogue_params, tOrO, softmax.row_sum, shared_storage, tiled_mma1,
+            collective_epilogue.store(epilogue_params, tOrO, shared_storage, tiled_mma1,
                                       threadIdx.x - NumCopyThreads, block_coord, seqlen_traits_q);
         #endif
             ++work_idx;

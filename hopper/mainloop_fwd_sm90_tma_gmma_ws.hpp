@@ -17,6 +17,7 @@
 #include "named_barrier.hpp"
 #include "utils.h"
 
+
 namespace flash3 {
 
 using namespace cute;
@@ -180,6 +181,7 @@ struct CollectiveMainloopFwd {
             select<0, 2>(TileShape_MNK{}),
             _1{}); // no mcast for Q
         Tensor mK = make_tensor(make_gmem_ptr(args.ptr_K), args.layout_K);
+        auto shape = mK.shape();
         TMA_K tma_load_K = make_tma_copy(
             GmemTiledCopyKV{},
             mK,

@@ -33,10 +33,10 @@
 
 #define CHECK_CUDA_KERNEL_LAUNCH() CHECK_CUDA(cudaGetLastError())
 
-using namespace cute;
 
 namespace flash3 {
 
+using namespace cute;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
