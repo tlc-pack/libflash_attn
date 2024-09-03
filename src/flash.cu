@@ -3,10 +3,13 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <cassert>
 
-#include "../hopper/flash_fwd_launch_template.h"
 #include "flash.h"
 #include "flash_internal.h"
+#ifdef HOPPER
+  #include "../hopper/flash_fwd_launch_template.h"
+#endif
 
 namespace flash_attn {
 
@@ -29,15 +32,7 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
   params.sm = major * 10 + minor;
 
   if(params.sm >= 90 && (params.d == 64 || params.d == 128 || params.d == 256)) {
-    if (!params.is_e4m3) {
-      if (params.d == 64) {
-        flash3::run_mha_fwd_<cutlass::half_t, 64>(params, stream);
-      } else if (params.d == 128) {
-        flash3::run_mha_fwd_<cutlass::half_t, 128>(params, stream);
-      } else {
-        flash3::run_mha_fwd_<cutlass::half_t, 256>(params, stream);
-      }
-    } else {
+    if (params.is_e4m3) {
       if (params.d == 64) {
         flash3::run_mha_fwd_<cutlass::float_e4m3_t, 64>(params, stream);
       } else if (params.d == 128) {
@@ -45,8 +40,17 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
       } else if (params.d == 256) {
         flash3::run_mha_fwd_<cutlass::float_e4m3_t, 256>(params, stream);
       }
+    } else {
+      if (params.d == 64) {
+        flash3::run_mha_fwd_<cutlass::half_t, 64>(params, stream);
+      } else if (params.d == 128) {
+        flash3::run_mha_fwd_<cutlass::half_t, 128>(params, stream);
+      } else {
+        flash3::run_mha_fwd_<cutlass::half_t, 256>(params, stream);
+      }
     }
   } else {
+    assert(params.is_e4m3 == false);
     auto head_dim = params.d;
     if (head_dim <= 32) {
       run_mha_fwd_<half, 32>(params, stream);
@@ -139,11 +143,6 @@ Flash_fwd_params get_fwd_params(half* q_ptr, half* k_ptr, half* v_ptr, half* out
   params.window_size_left = window_size_left;
   params.window_size_right = window_size_right;
 
-  params.tile_count_semaphore = new int;
-  if (is_causal) {
-    *(params.tile_count_semaphore) = 0;
-  }
-
   return params;
 }
 
@@ -183,9 +182,14 @@ void flash_attention_var_len_forward(half* q_ptr, half* k_ptr, half* v_ptr, cons
   params.is_seqlens_k_cumulative = true;
   params.total_q = total_q;
   params.total_k = total_k;
+  
+  int tile_count_semaphore[1];
+  if (is_causal) {
+    tile_count_semaphore[0] = 0;
+  }
+  params.tile_count_semaphore = &tile_count_semaphore[0];
 
   run(params, stream);
-  delete params.tile_count_semaphore;
 }
 
 inline int num_splits_heuristic(int batch_nheads_mblocks, int num_SMs, int num_n_blocks,

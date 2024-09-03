@@ -23,76 +23,77 @@ if(NOT NVCC_VERSION)
 endif()
 
 if(GPU_H100 AND NVCC_VERSION GREATER_EQUAL 12)
-    set(compute_compacity "90a")
+    set(compute_capability "90a")
+    add_definitions(-DHOPPER)
 else()
-    set(compute_compacity "80")
+    set(compute_capability "80")
 endif()
 
-message("compute_compacity: ${compute_compacity}")
+message("compute_capability: ${compute_capability}")
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr --use_fast_math -t 8 \
-                    -gencode=arch=compute_${compute_compacity},code=\\\"sm_${compute_compacity},compute_${compute_compacity}\\\" \
+                    -gencode=arch=compute_${compute_capability},code=\\\"sm_${compute_capability},compute_${compute_capability}\\\" \
                     ")
-
-
 
 # ################ CUDA ################
 find_package(CUDAToolkit REQUIRED)
 
 include_directories("./cutlass/include")
 include_directories("./include")
-include_directories(${CUDAToolkit_INCLUDE_DIRS}) 
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
+include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+link_directories(${CUDA_TOOLKIT_ROOT_DIR}/lib64)
 
 
-if(compute_compacity STREQUAL "90a")
-add_library(flash_attn SHARED
-    src/flash.cu
-  
-    src/flash_fwd_hdim128_fp16_sm80.cu
-    src/flash_fwd_hdim160_fp16_sm80.cu
-    src/flash_fwd_hdim192_fp16_sm80.cu
-    src/flash_fwd_hdim224_fp16_sm80.cu
-    src/flash_fwd_hdim256_fp16_sm80.cu
-    src/flash_fwd_hdim32_fp16_sm80.cu
-    src/flash_fwd_hdim64_fp16_sm80.cu
-    src/flash_fwd_hdim96_fp16_sm80.cu
-    src/flash_fwd_split_hdim128_fp16_sm80.cu
-    src/flash_fwd_split_hdim160_fp16_sm80.cu
-    src/flash_fwd_split_hdim192_fp16_sm80.cu
-    src/flash_fwd_split_hdim224_fp16_sm80.cu
-    src/flash_fwd_split_hdim256_fp16_sm80.cu
-    src/flash_fwd_split_hdim32_fp16_sm80.cu
-    src/flash_fwd_split_hdim64_fp16_sm80.cu
-    src/flash_fwd_split_hdim96_fp16_sm80.cu
+if(compute_capability STREQUAL "90a")
+    add_library(flash_attn SHARED
+        src/flash.cu
+    
+        src/flash_fwd_hdim128_fp16_sm80.cu
+        src/flash_fwd_hdim160_fp16_sm80.cu
+        src/flash_fwd_hdim192_fp16_sm80.cu
+        src/flash_fwd_hdim224_fp16_sm80.cu
+        src/flash_fwd_hdim256_fp16_sm80.cu
+        src/flash_fwd_hdim32_fp16_sm80.cu
+        src/flash_fwd_hdim64_fp16_sm80.cu
+        src/flash_fwd_hdim96_fp16_sm80.cu
+        src/flash_fwd_split_hdim128_fp16_sm80.cu
+        src/flash_fwd_split_hdim160_fp16_sm80.cu
+        src/flash_fwd_split_hdim192_fp16_sm80.cu
+        src/flash_fwd_split_hdim224_fp16_sm80.cu
+        src/flash_fwd_split_hdim256_fp16_sm80.cu
+        src/flash_fwd_split_hdim32_fp16_sm80.cu
+        src/flash_fwd_split_hdim64_fp16_sm80.cu
+        src/flash_fwd_split_hdim96_fp16_sm80.cu
 
-    hopper/flash_fwd_hdim64_fp16_sm90.cu
-    hopper/flash_fwd_hdim128_fp16_sm90.cu
-    hopper/flash_fwd_hdim256_fp16_sm90.cu
-    hopper/flash_fwd_hdim64_e4m3_sm90.cu
-    hopper/flash_fwd_hdim128_e4m3_sm90.cu
-    hopper/flash_fwd_hdim256_e4m3_sm90.cu
-  )
+        hopper/flash_fwd_hdim64_fp16_sm90.cu
+        hopper/flash_fwd_hdim128_fp16_sm90.cu
+        hopper/flash_fwd_hdim256_fp16_sm90.cu
+        hopper/flash_fwd_hdim64_e4m3_sm90.cu
+        hopper/flash_fwd_hdim128_e4m3_sm90.cu
+        hopper/flash_fwd_hdim256_e4m3_sm90.cu
+    )
 else()
-add_library(flash_attn SHARED
-    src/flash.cu
-  
-    src/flash_fwd_hdim128_fp16_sm80.cu
-    src/flash_fwd_hdim160_fp16_sm80.cu
-    src/flash_fwd_hdim192_fp16_sm80.cu
-    src/flash_fwd_hdim224_fp16_sm80.cu
-    src/flash_fwd_hdim256_fp16_sm80.cu
-    src/flash_fwd_hdim32_fp16_sm80.cu
-    src/flash_fwd_hdim64_fp16_sm80.cu
-    src/flash_fwd_hdim96_fp16_sm80.cu
-    src/flash_fwd_split_hdim128_fp16_sm80.cu
-    src/flash_fwd_split_hdim160_fp16_sm80.cu
-    src/flash_fwd_split_hdim192_fp16_sm80.cu
-    src/flash_fwd_split_hdim224_fp16_sm80.cu
-    src/flash_fwd_split_hdim256_fp16_sm80.cu
-    src/flash_fwd_split_hdim32_fp16_sm80.cu
-    src/flash_fwd_split_hdim64_fp16_sm80.cu
-    src/flash_fwd_split_hdim96_fp16_sm80.cu
-  )
+    add_library(flash_attn SHARED
+        src/flash.cu
+    
+        src/flash_fwd_hdim128_fp16_sm80.cu
+        src/flash_fwd_hdim160_fp16_sm80.cu
+        src/flash_fwd_hdim192_fp16_sm80.cu
+        src/flash_fwd_hdim224_fp16_sm80.cu
+        src/flash_fwd_hdim256_fp16_sm80.cu
+        src/flash_fwd_hdim32_fp16_sm80.cu
+        src/flash_fwd_hdim64_fp16_sm80.cu
+        src/flash_fwd_hdim96_fp16_sm80.cu
+        src/flash_fwd_split_hdim128_fp16_sm80.cu
+        src/flash_fwd_split_hdim160_fp16_sm80.cu
+        src/flash_fwd_split_hdim192_fp16_sm80.cu
+        src/flash_fwd_split_hdim224_fp16_sm80.cu
+        src/flash_fwd_split_hdim256_fp16_sm80.cu
+        src/flash_fwd_split_hdim32_fp16_sm80.cu
+        src/flash_fwd_split_hdim64_fp16_sm80.cu
+        src/flash_fwd_split_hdim96_fp16_sm80.cu
+    )
 endif()
 
-set_target_properties(flash_attn PROPERTIES CUDA_ARCHITECTURES "${compute_compacity}")
+set_target_properties(flash_attn PROPERTIES CUDA_ARCHITECTURES "${compute_capability}")
