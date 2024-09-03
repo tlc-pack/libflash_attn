@@ -356,10 +356,11 @@ void flash_attention_var_len_paged_kv_forward(half *q_ptr,
 					      int window_size_right,
 					      int num_splits,
 					      cudaStream_t stream) {
+  int kv_batch_stride = block_size * k_row_stride;
   auto params = get_fwd_params(q_ptr, kcache_ptr, vcache_ptr, output_ptr,
 			       batch_size, max_seqlen_q, max_seqlen_k,
 			       num_heads, num_heads_k, head_dim,
-			       0, 0, 0, 0, // batch strides
+			       0, kv_batch_stride, kv_batch_stride, 0,
 			       q_head_stride, k_head_stride,
 			       v_head_stride, o_head_stride,
 			       q_row_stride, k_row_stride,
