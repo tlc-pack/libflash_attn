@@ -28,27 +28,23 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
   cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, device);
   params.sm = major * 10 + minor;
 
-  // call method in hopper dir
-  if (params.d >= 64) {
-    if (params.sm >= 90) {
-      if (!params.is_e4m3) {
-        if (params.d == 64) {
-          flash3::run_mha_fwd_<cutlass::half_t, 64>(params, stream);
-        } else if (params.d == 128) {
-          flash3::run_mha_fwd_<cutlass::half_t, 128>(params, stream);
-        } else {
-          flash3::run_mha_fwd_<cutlass::half_t, 256>(params, stream);
-        }
+  if(params.sm >= 90 && (params.d == 64 || params.d == 128 || params.d == 256)) {
+    if (!params.is_e4m3) {
+      if (params.d == 64) {
+        flash3::run_mha_fwd_<cutlass::half_t, 64>(params, stream);
+      } else if (params.d == 128) {
+        flash3::run_mha_fwd_<cutlass::half_t, 128>(params, stream);
       } else {
-        if (params.d == 64) {
-          flash3::run_mha_fwd_<cutlass::float_e4m3_t, 64>(params, stream);
-        } else if (params.d == 128) {
-          flash3::run_mha_fwd_<cutlass::float_e4m3_t, 128>(params, stream);
-        } else if (params.d == 256) {
-          flash3::run_mha_fwd_<cutlass::float_e4m3_t, 256>(params, stream);
-        }
+        flash3::run_mha_fwd_<cutlass::half_t, 256>(params, stream);
       }
-      return;
+    } else {
+      if (params.d == 64) {
+        flash3::run_mha_fwd_<cutlass::float_e4m3_t, 64>(params, stream);
+      } else if (params.d == 128) {
+        flash3::run_mha_fwd_<cutlass::float_e4m3_t, 128>(params, stream);
+      } else if (params.d == 256) {
+        flash3::run_mha_fwd_<cutlass::float_e4m3_t, 256>(params, stream);
+      }
     }
   } else {
     auto head_dim = params.d;
@@ -70,6 +66,7 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
       run_mha_fwd_<half, 256>(params, stream);
     }
   }
+
 }
 
 Flash_fwd_params get_fwd_params(half* q_ptr, half* k_ptr, half* v_ptr, half* output_ptr,

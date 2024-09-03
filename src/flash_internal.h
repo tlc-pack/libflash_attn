@@ -98,14 +98,14 @@ struct Flash_fwd_params : public Qkv_params {
     /****** new class members in hopper ******/
     int total_q, total_k;
     uint32_t scale_softmax_log2_half2;
-    int* __restrict__ blockmask;
+    // int* __restrict__ blockmask;
     // The dropout probability (probability of keeping an activation).
-    float p_dropout;
-    uint8_t p_dropout_in_uint8_t;
+    // float p_dropout;
+    // uint8_t p_dropout_in_uint8_t;
 
     // Scale factor of 1 / (1 - p_dropout).
-    float rp_dropout;
-    float scale_softmax_rp_dropout;
+    // float rp_dropout;
+    // float scale_softmax_rp_dropout;
 
     bool is_bf16 = false;
     bool is_e4m3 = false;
