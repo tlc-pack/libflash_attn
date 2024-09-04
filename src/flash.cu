@@ -183,11 +183,8 @@ void flash_attention_var_len_forward(half* q_ptr, half* k_ptr, half* v_ptr, cons
   params.total_q = total_q;
   params.total_k = total_k;
   
-  int tile_count_semaphore[1];
-  if (is_causal) {
-    tile_count_semaphore[0] = 0;
-  }
-  params.tile_count_semaphore = &tile_count_semaphore[0];
+  int tile_count_semaphore = 0;
+  params.tile_count_semaphore = &tile_count_semaphore;
 
   run(params, stream);
 }
