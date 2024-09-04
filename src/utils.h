@@ -14,7 +14,7 @@
 #include <cuda_bf16.h>
 #endif
 
-#include <cute/algorithm/copy.hpp>
+#include <cute/tensor.hpp>
 #include <cute/algorithm/gemm.hpp>
 
 #include <cutlass/array.h>

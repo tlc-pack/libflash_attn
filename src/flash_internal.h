@@ -1,3 +1,5 @@
+#pragma once
+
 struct Qkv_params {
     using index_t = int64_t;
     // The QKV matrices.
@@ -92,6 +94,23 @@ struct Flash_fwd_params : public Qkv_params {
 
     bool is_causal;
     int sm = 80;
+
+    /****** new class members in hopper ******/
+    int total_q, total_k;
+    uint32_t scale_softmax_log2_half2;
+    // int* __restrict__ blockmask;
+    // The dropout probability (probability of keeping an activation).
+    // float p_dropout;
+    // uint8_t p_dropout_in_uint8_t;
+
+    // Scale factor of 1 / (1 - p_dropout).
+    // float rp_dropout;
+    // float scale_softmax_rp_dropout;
+
+    bool is_bf16 = false;
+    bool is_e4m3 = false;
+
+    int* __restrict__ tile_count_semaphore;
 };
 
 template<typename T, int Headdim> void run_mha_fwd_(Flash_fwd_params &params, cudaStream_t stream);
