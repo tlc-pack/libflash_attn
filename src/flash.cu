@@ -108,9 +108,15 @@ Flash_fwd_params get_fwd_params(half* q_ptr, half* k_ptr, half* v_ptr, half* out
   params.k_ptr = k_ptr;
   params.v_ptr = v_ptr;
   params.o_ptr = output_ptr;
+
   // Causal is the special case where window_size_right == 0 and window_size_left < 0.
   // Local is the more general case where window_size_right >= 0 or window_size_left >= 0.
+  // See https://github.com/Dao-AILab/flash-attention/blob/92dd5703ecdb99aa4a4aee9817f28557907403a2/csrc/flash_attn/flash_api.cpp#L111-L116
+  // for this logic
   params.is_causal = window_size_left < 0 && window_size_right == 0;
+  if (window_size_left < 0 && window_size_right >= 0) { window_size_left = seqlen_k; }
+  if (window_size_left >= 0 && window_size_right < 0) { window_size_right = seqlen_k; }
+
   params.b = batch_size;
   params.h = num_heads;
   params.h_k = num_heads_k;
@@ -182,7 +188,7 @@ void flash_attention_var_len_forward(half* q_ptr, half* k_ptr, half* v_ptr, cons
   params.is_seqlens_k_cumulative = true;
   params.total_q = total_q;
   params.total_k = total_k;
-  
+
   int tile_count_semaphore = 0;
   params.tile_count_semaphore = &tile_count_semaphore;
 
