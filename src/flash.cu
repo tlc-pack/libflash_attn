@@ -32,7 +32,7 @@ void run(Flash_fwd_params params, cudaStream_t stream) {
   params.sm = major * 10 + minor;
   bool is_local = (params.window_size_left >= 0 || params.window_size_right >= 0) && !params.is_causal;
 
-  if(params.sm >= 90 && (params.d == 64 || params.d == 128 || params.d == 256) && !is_local) {
+  if (params.sm >= 90 && (params.d == 64 || params.d == 128 || params.d == 256) && !is_local) {
     if (params.is_e4m3) {
       if (params.d == 64) {
         flash3::run_mha_fwd_<cutlass::float_e4m3_t, 64>(params, stream);
